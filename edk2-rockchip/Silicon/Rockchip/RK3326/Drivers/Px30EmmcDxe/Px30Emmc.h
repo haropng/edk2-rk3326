@@ -31,6 +31,9 @@
 #define DWEMMC_STATUS           0x048
 #define DWEMMC_FIFOTH           0x04c
 #define DWEMMC_DEBNCE           0x064
+#define DWEMMC_USRID            0x068
+#define DWEMMC_VERID            0x06C
+#define DWEMMC_HCON             0x070
 #define DWEMMC_UHSREG           0x074
 #define DWEMMC_BMOD             0x080
 #define DWEMMC_DBADDR           0x088
@@ -78,13 +81,17 @@
 
 // ── Interrupt bits ─────────────────────────────────────────────────
 #define DWEMMC_INT_EBE                          BIT15
+#define DWEMMC_INT_ACD                          BIT14
 #define DWEMMC_INT_SBE                          BIT13
 #define DWEMMC_INT_HLE                          BIT12
 #define DWEMMC_INT_FRUN                         BIT11
+#define DWEMMC_INT_HTO                          BIT10
 #define DWEMMC_INT_DRT                          BIT9
 #define DWEMMC_INT_RTO                          BIT8
 #define DWEMMC_INT_DCRC                         BIT7
 #define DWEMMC_INT_RCRC                         BIT6
+#define DWEMMC_INT_RXDR                         BIT5
+#define DWEMMC_INT_TXDR                         BIT4
 #define DWEMMC_INT_DTO                          BIT3
 #define DWEMMC_INT_CMD_DONE                     BIT2
 #define DWEMMC_INT_RE                           BIT1

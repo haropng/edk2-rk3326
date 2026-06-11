@@ -49,7 +49,7 @@
 
   # PX30 eMMC — direct DWMMC driver (RK3399 pattern)
   gRK3326TokenSpaceGuid.PcdPx30EmmcBaseAddress|0xFF390000|UINT32|0x00010600
-  gRK3326TokenSpaceGuid.PcdPx30EmmcClockFrequency|52000000|UINT32|0x00010601
+  gRK3326TokenSpaceGuid.PcdPx30EmmcClockFrequency|100000000|UINT32|0x00010601
 
 [PcdsFixedAtBuild, PcdsDynamic]
   gRK3326TokenSpaceGuid.PcdConfigTableMode|0|UINT32|0x00000300
