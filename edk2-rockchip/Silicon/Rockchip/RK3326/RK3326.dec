@@ -20,6 +20,8 @@
 [Guids.common]
   gRK3326TokenSpaceGuid = { 0xc5a7e4d1, 0x8f3b, 0x4c9e, { 0xa2, 0xd6, 0x1e, 0x5f, 0x7b, 0x8c, 0x0a, 0x3d } }
   gRK3326DxeFormSetGuid = { 0xd6b8f5e2, 0x9c4f, 0x4d8a, { 0xb3, 0xe7, 0x2f, 0x6c, 0x8d, 0x1a, 0x5e, 0x9d } }
+  # Shared Rockchip token space — matches RockchipPkg.dec from RK3588/RK3576 reference ports
+  gRockchipTokenSpaceGuid = { 0xc620b83a, 0x3175, 0x11ec, { 0x95, 0xb4, 0xf4, 0x2a, 0x7d, 0xcb, 0x92, 0x5d } }
 
 [PcdsFixedAtBuild]
   # RK3326 peripheral base addresses
@@ -38,6 +40,16 @@
   # Status LED
   gRK3326TokenSpaceGuid.PcdStatusLedGpio|0xFF|UINT8|0x00010500
   gRK3326TokenSpaceGuid.PcdStatusLedGpioPolarity|TRUE|BOOLEAN|0x00010501
+
+  # SDMMC — Rockchip shared PCDs (used by RkSdmmcDxe, DwMmcHcDxe)
+  gRockchipTokenSpaceGuid.PcdRkSdmmcBaseAddress|0xFF370000|UINT32|0x00001001
+  gRockchipTokenSpaceGuid.PcdRkSdmmcCardDetectBroken|FALSE|BOOLEAN|0x00001002
+  # eMMC — Rockchip shared PCDs (used by RkEmmcDxe, DwMmcHcDxe)
+  gRockchipTokenSpaceGuid.PcdRkEmmcBaseAddress|0xFF390000|UINT32|0x00001003
+
+  # PX30 eMMC — direct DWMMC driver (RK3399 pattern)
+  gRK3326TokenSpaceGuid.PcdPx30EmmcBaseAddress|0xFF390000|UINT32|0x00010600
+  gRK3326TokenSpaceGuid.PcdPx30EmmcClockFrequency|52000000|UINT32|0x00010601
 
 [PcdsFixedAtBuild, PcdsDynamic]
   gRK3326TokenSpaceGuid.PcdConfigTableMode|0|UINT32|0x00000300

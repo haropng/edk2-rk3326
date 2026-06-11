@@ -1,0 +1,48 @@
+#/** @file
+#
+#  Synopsys DesignWare MSHC platform driver for Rockchip eMMC
+#
+#  Copyright (c) 2026, RK3326 EDK2 Port
+#
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+#
+#**/
+
+[Defines]
+  INF_VERSION                    = 0x00010019
+  BASE_NAME                      = RkEmmcDxe
+  FILE_GUID                      = c7d5f9a3-2e4b-4f6c-8d1e-0a5b7c3f9e6d
+  MODULE_TYPE                    = UEFI_DRIVER
+  VERSION_STRING                 = 1.0
+
+  ENTRY_POINT                    = RkEmmcDxeInitialize
+
+[Sources.common]
+  RkEmmcDxe.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  Silicon/Rockchip/RK3326/RK3326.dec
+  Silicon/Synopsys/DesignWare/DesignWarePkg.dec
+
+[LibraryClasses]
+  UefiDriverEntryPoint
+  BaseMemoryLib
+  DebugLib
+  UefiBootServicesTableLib
+  RkEmmcPlatformLib
+
+[Protocols]
+  gEfiDevicePathProtocolGuid                      ## PRODUCES
+  gEdkiiNonDiscoverableDeviceProtocolGuid         ## PRODUCES
+  gPlatformDwMmcProtocolGuid                      ## PRODUCES
+
+[Guids]
+  gDwMmcHcNonDiscoverableDeviceGuid
+
+[Pcd]
+  gRockchipTokenSpaceGuid.PcdRkEmmcBaseAddress
+
+[Depex]
+  TRUE

@@ -1,0 +1,50 @@
+## @file
+#  PX30 DesignWare eMMC host controller driver.
+#
+#  Direct DWMMC register access (RK3399 DwEmmcDxe pattern).
+#  Produces EFI_MMC_HOST_PROTOCOL (consumed by EmbeddedPkg/MmcDxe).
+#
+#  Copyright (c) 2026, RK3326 EDK2 Port
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+
+[Defines]
+  INF_VERSION                    = 0x00010019
+  BASE_NAME                      = Px30EmmcDxe
+  FILE_GUID                      = a1b2c3d4-e5f6-7890-abcd-ef0123456789
+  MODULE_TYPE                    = UEFI_DRIVER
+  VERSION_STRING                 = 1.0
+  ENTRY_POINT                    = Px30EmmcDxeInitialize
+
+[Sources]
+  Px30Emmc.h
+  Px30EmmcDxe.c
+
+[Packages]
+  ArmPkg/ArmPkg.dec
+  EmbeddedPkg/EmbeddedPkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  MdePkg/MdePkg.dec
+  Silicon/Rockchip/RK3326/RK3326.dec
+
+[LibraryClasses]
+  BaseMemoryLib
+  CacheMaintenanceLib
+  DebugLib
+  DevicePathLib
+  IoLib
+  MemoryAllocationLib
+  PcdLib
+  TimerLib
+  UefiBootServicesTableLib
+  UefiDriverEntryPoint
+
+[Protocols]
+  gEmbeddedMmcHostProtocolGuid       ## PRODUCES
+
+[FixedPcd]
+  gRK3326TokenSpaceGuid.PcdPx30EmmcBaseAddress
+  gRK3326TokenSpaceGuid.PcdPx30EmmcClockFrequency
+
+[Depex]
+  TRUE

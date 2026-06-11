@@ -147,15 +147,26 @@ READ_LOCK_STATUS   = TRUE
   INF MdeModulePkg/Universal/Disk/UnicodeCollation/EnglishDxe/EnglishDxe.inf
 
   #
-  # SD/eMMC
+  #
+  # SD/eMMC protocol stack (SD card)
   #
 !if $(RK_SD_ENABLE) == TRUE || $(RK_EMMC_ENABLE) == TRUE
   INF MdeModulePkg/Bus/Sd/SdDxe/SdDxe.inf
   INF MdeModulePkg/Bus/Sd/EmmcDxe/EmmcDxe.inf
+  INF Silicon/Rockchip/Drivers/RkSdmmcDxe/RkSdmmcDxe.inf
+  INF Silicon/Synopsys/DesignWare/Drivers/DwMmcHcDxe/DwMmcHcDxe.inf
 !endif
 
   #
-  # BDS
+  # eMMC direct DWMMC driver (RK3399 pattern)
+  #
+!if $(RK_EMMC_ENABLE) == TRUE
+  INF Silicon/Rockchip/RK3326/Drivers/Px30EmmcDxe/Px30EmmcDxe.inf
+  INF EmbeddedPkg/Universal/MmcDxe/MmcDxe.inf
+!endif
+
+  #
+  # BDS  # BDS
   #
   INF MdeModulePkg/Universal/BootManagerPolicyDxe/BootManagerPolicyDxe.inf
   INF MdeModulePkg/Universal/DevicePathDxe/DevicePathDxe.inf

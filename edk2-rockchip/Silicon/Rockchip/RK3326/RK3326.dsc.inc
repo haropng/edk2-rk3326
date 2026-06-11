@@ -156,6 +156,11 @@
   TimeBaseLib|EmbeddedPkg/Library/TimeBaseLib/TimeBaseLib.inf
   MemoryAllocationLib|MdePkg/Library/UefiMemoryAllocationLib/UefiMemoryAllocationLib.inf
 
+  # SD/eMMC — Rockchip platform libraries
+  RkSdmmcPlatformLib|Silicon/Rockchip/RK3326/Library/RkSdmmcPlatformLib/RkSdmmcPlatformLib.inf
+  RkEmmcPlatformLib|Silicon/Rockchip/RK3326/Library/RkEmmcPlatformLib/RkEmmcPlatformLib.inf
+  RockchipPlatformLib|Silicon/Rockchip/RK3326/Library/RockchipPlatformLib/RockchipPlatformLib.inf
+
 [LibraryClasses.common.SEC]
   PcdLib|MdePkg/Library/BasePcdLibNull/BasePcdLibNull.inf
   BaseMemoryLib|MdePkg/Library/BaseMemoryLib/BaseMemoryLib.inf
@@ -396,6 +401,22 @@
 !if $(RK_SD_ENABLE) == TRUE || $(RK_EMMC_ENABLE) == TRUE
   MdeModulePkg/Bus/Sd/SdDxe/SdDxe.inf
   MdeModulePkg/Bus/Sd/EmmcDxe/EmmcDxe.inf
+  #
+  # Rockchip platform glue (loads before HC driver)
+  #
+  Silicon/Rockchip/Drivers/RkSdmmcDxe/RkSdmmcDxe.inf
+  #
+  # DesignWare MMC host controller
+  #
+  Silicon/Synopsys/DesignWare/Drivers/DwMmcHcDxe/DwMmcHcDxe.inf
+!endif
+
+  #
+  # eMMC — direct DWMMC driver (RK3399 pattern, replaces RkEmmcDxe+DwMmcHcDxe)
+  #
+!if $(RK_EMMC_ENABLE) == TRUE
+  Silicon/Rockchip/RK3326/Drivers/Px30EmmcDxe/Px30EmmcDxe.inf
+  EmbeddedPkg/Universal/MmcDxe/MmcDxe.inf
 !endif
 
   #

@@ -1,0 +1,29 @@
+## @file
+#
+#  Rockchip platform helper library — RK3326 (PX30) minimal variant.
+#
+#  On PX30, U-Boot already configures SDMMC/eMMC IOMUX during board_init.
+#  This library provides stubs that can be extended for board-specific needs.
+#
+#  Copyright (c) 2026, RK3326 EDK2 Port
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+#
+##
+
+[Defines]
+  INF_VERSION                    = 0x0001001A
+  BASE_NAME                      = RK3326RockchipPlatformLib
+  FILE_GUID                      = e8b2d0f5-3e9c-4d7a-b2f6-9d0c8e1a4b7f
+  MODULE_TYPE                    = BASE
+  VERSION_STRING                 = 1.0
+  LIBRARY_CLASS                  = RockchipPlatformLib
+
+[Sources]
+  RockchipPlatformLib.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  Silicon/Rockchip/RK3326/RK3326.dec
+
+[LibraryClasses]
+  DebugLib

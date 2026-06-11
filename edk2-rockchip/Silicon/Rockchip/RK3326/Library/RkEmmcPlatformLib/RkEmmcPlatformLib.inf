@@ -1,0 +1,35 @@
+## @file
+#
+#  RkEmmcDxe platform helper library — RK3326 (PX30) variant.
+#
+#  eMMC clock shares CLKSEL20/21 with SDMMC on PX30.
+#  U-Boot already configures clocks and IOMUX during boot.
+#
+#  Copyright (c) 2026, RK3326 EDK2 Port
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+#
+##
+
+[Defines]
+  INF_VERSION                    = 0x0001001A
+  BASE_NAME                      = Rk3326EmmcPlatformLib
+  FILE_GUID                      = a2d4e8f1-6b3c-4e5a-9c7d-1f0e8b5a3d2c
+  MODULE_TYPE                    = BASE
+  VERSION_STRING                 = 1.0
+  LIBRARY_CLASS                  = RkEmmcPlatformLib
+
+[Sources]
+  RkEmmcPlatformLib.c
+
+[Packages]
+  ArmPkg/ArmPkg.dec
+  MdePkg/MdePkg.dec
+  Silicon/Rockchip/RK3326/RK3326.dec
+
+[LibraryClasses]
+  DebugLib
+  IoLib
+  RockchipPlatformLib
+
+[Pcd]
+  gRockchipTokenSpaceGuid.PcdRkEmmcBaseAddress
