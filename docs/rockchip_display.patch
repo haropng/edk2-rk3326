@@ -1,0 +1,100 @@
+# rockchip_display.c — UEFI GOP Handoff Modifications
+#
+# File: 6.1-rksdk/u-boot/drivers/video/drm/rockchip_display.c
+# Purpose: Force VOPB WIN1 to 32bpp fullscreen 1:1 mapping so UEFI SimpleFbDxe
+#          gets a clean linear framebuffer at panel native resolution.
+#
+# Three locations modified (two functions share the same pattern):
+
+# ============================================================================
+# Patch 1/3: display_logo() — force source rect + crtc rect to panel size
+# ============================================================================
+# Lines ~1048-1065
+#
+# BEFORE:
+#   hdisplay = conn_state->mode.crtc_hdisplay;
+#   vdisplay = conn_state->mode.vdisplay;
+#   crtc_state->src_rect.w = logo->width;
+#   crtc_state->src_rect.h = logo->height;
+#   crtc_state->src_rect.x = 0;
+#   crtc_state->src_rect.y = 0;
+#   crtc_state->ymirror = logo->ymirror;
+#   crtc_state->rb_swap = 0;
+#
+#   crtc_state->dma_addr = (u32)(unsigned long)logo->mem + logo->offset;
+#   crtc_state->xvir = ALIGN(crtc_state->src_rect.w * logo->bpp, 32) >> 5;
+#
+#   if (state->logo_mode == ROCKCHIP_DISPLAY_FULLSCREEN) {
+#       crtc_state->crtc_rect.x = 0;
+#       crtc_state->crtc_rect.y = 0;
+#       crtc_state->crtc_rect.w = hdisplay;
+#       crtc_state->crtc_rect.h = vdisplay;
+#   } else {
+#       ...center/scale logic...
+#   }
+#
+# AFTER:
+	hdisplay = conn_state->mode.crtc_hdisplay;
+	vdisplay = conn_state->mode.vdisplay;
+	/* Force source to panel size for UEFI linear framebuffer handoff */
+	crtc_state->src_rect.w = hdisplay;
+	crtc_state->src_rect.h = vdisplay;
+	crtc_state->src_rect.x = 0;
+	crtc_state->src_rect.y = 0;
+	crtc_state->ymirror = logo->ymirror;
+	crtc_state->rb_swap = 0;
+
+	crtc_state->dma_addr = (u32)(unsigned long)logo->mem;
+	crtc_state->xvir = ALIGN(crtc_state->src_rect.w * logo->bpp, 32) >> 5;
+
+	/* Force fullscreen 1:1 mapping */
+	crtc_state->crtc_rect.x = 0;
+	crtc_state->crtc_rect.y = 0;
+	crtc_state->crtc_rect.w = hdisplay;
+	crtc_state->crtc_rect.h = vdisplay;
+
+# ============================================================================
+# Patch 2/3: display_bmp() — same changes as display_logo()
+# ============================================================================
+# Lines ~1137-1153
+# Same BEFORE/AFTER as Patch 1 but in the display_bmp() function.
+# Both functions are near-identical and apply the same logo display logic.
+
+# ============================================================================
+# Patch 3/3: load_bmp_logo() — enforce minimum framebuffer size
+# ============================================================================
+# Lines ~1512-1515
+#
+# BEFORE:
+#   logo->width = get_unaligned_le32(&bmp.width);
+#   logo->height = get_unaligned_le32(&bmp.height);
+#   dst_size = logo->width * logo->height * logo->bpp >> 3;
+#
+# AFTER:
+	logo->width = get_unaligned_le32(&bmp.width);
+	logo->height = get_unaligned_le32(&bmp.height);
+	/* Allocate at least 480x640x4 for full-screen UEFI handoff */
+	dst_size = logo->width * logo->height * logo->bpp >> 3;
+	if (dst_size < 480 * 640 * 4)
+		dst_size = 480 * 640 * 4;
+
+# (Also applied at the second dst_size calculation ~line 1538 in the same function)
+
+# ============================================================================
+# Summary of changes:
+# ============================================================================
+# 1. src_rect.w/h:  logo->width/height  →  hdisplay/vdisplay
+#    VOPB reads the FULL panel-size framebuffer, not just the logo portion.
+#
+# 2. dma_addr:  logo->mem + logo->offset  →  logo->mem
+#    Framebuffer starts at the beginning of the allocated buffer (no offset).
+#
+# 3. crtc_rect:  center/scale logic  →  forced fullscreen (0,0,hdisplay,vdisplay)
+#    1:1 pixel mapping — no scaling, no centering.
+#
+# 4. dst_size:  logo->w*h*4  →  max(logo->w*h*4, 480*640*4)
+#    Ensures buffer is at least full panel size even for small logo images.
+#
+# Note: bpp=32 is already forced at line ~1539 in the original U-Boot code:
+#   logo->bpp = 32;
+#   logo->offset = 0;
