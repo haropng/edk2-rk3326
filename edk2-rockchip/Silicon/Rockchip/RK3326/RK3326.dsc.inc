@@ -59,6 +59,7 @@
   SynchronizationLib|MdePkg/Library/BaseSynchronizationLib/BaseSynchronizationLib.inf
   PrintLib|MdePkg/Library/BasePrintLib/BasePrintLib.inf
   IoLib|MdePkg/Library/BaseIoLibIntrinsic/BaseIoLibIntrinsic.inf
+  FrameBufferBltLib|MdeModulePkg/Library/FrameBufferBltLib/FrameBufferBltLib.inf
   UefiDecompressLib|MdePkg/Library/BaseUefiDecompressLib/BaseUefiDecompressLib.inf
   CpuLib|MdePkg/Library/BaseCpuLib/BaseCpuLib.inf
   PeCoffGetEntryPointLib|MdePkg/Library/BasePeCoffGetEntryPointLib/BasePeCoffGetEntryPointLib.inf
@@ -247,8 +248,7 @@
 
   # Emulated variable storage (no physical NOR flash on this board)
   gEfiMdeModulePkgTokenSpaceGuid.PcdEmuVariableNvModeEnable|TRUE
-  # Let BDS find UiApp as the BootManagerMenu
-  # No BootManagerMenu — boot Shell directly
+  # Boot directly to Shell — UiApp (BootManagerMenu) crashes on 480px screen
   gEfiMdeModulePkgTokenSpaceGuid.PcdBootManagerMenuFile|{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }
   gArmTokenSpaceGuid.PcdUefiShellDefaultBootEnable|TRUE
   gEfiShellPkgTokenSpaceGuid.PcdShellLibAutoInitialize|FALSE
@@ -367,8 +367,7 @@
   #
   MdeModulePkg/Universal/Console/ConPlatformDxe/ConPlatformDxe.inf
   MdeModulePkg/Universal/Console/ConSplitterDxe/ConSplitterDxe.inf
-  # GraphicsConsoleDxe disabled — 480x640 portrait panel too narrow for 80 columns
-  # MdeModulePkg/Universal/Console/GraphicsConsoleDxe/GraphicsConsoleDxe.inf
+  MdeModulePkg/Universal/Console/GraphicsConsoleDxe/GraphicsConsoleDxe.inf
   MdeModulePkg/Universal/Console/TerminalDxe/TerminalDxe.inf
   MdeModulePkg/Universal/SerialDxe/SerialDxe.inf
 
@@ -444,5 +443,4 @@
   #
   Silicon/Rockchip/RK3326/Drivers/RK3326Dxe/RK3326Dxe.inf
   Silicon/Rockchip/RK3326/Drivers/FdtDxe/FdtDxe.inf
-  # SimpleFbDxe disabled — VOPB/DSI needs full HW init sequence
-  # Silicon/Rockchip/RK3326/Drivers/SimpleFbDxe/SimpleFbDxe.inf
+  Silicon/Rockchip/RK3326/Drivers/SimpleFbDxe/SimpleFbDxe.inf

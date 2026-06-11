@@ -123,8 +123,7 @@ READ_LOCK_STATUS   = TRUE
   #
   INF MdeModulePkg/Universal/Console/ConPlatformDxe/ConPlatformDxe.inf
   INF MdeModulePkg/Universal/Console/ConSplitterDxe/ConSplitterDxe.inf
-  # GraphicsConsoleDxe disabled — 480x640 portrait too narrow for 80 columns
-  # INF MdeModulePkg/Universal/Console/GraphicsConsoleDxe/GraphicsConsoleDxe.inf
+  INF MdeModulePkg/Universal/Console/GraphicsConsoleDxe/GraphicsConsoleDxe.inf
   INF MdeModulePkg/Universal/Console/TerminalDxe/TerminalDxe.inf
   INF MdeModulePkg/Universal/SerialDxe/SerialDxe.inf
 
@@ -175,7 +174,7 @@ READ_LOCK_STATUS   = TRUE
   #
   INF Silicon/Rockchip/RK3326/Drivers/RK3326Dxe/RK3326Dxe.inf
   INF Silicon/Rockchip/RK3326/Drivers/FdtDxe/FdtDxe.inf
-  # INF Silicon/Rockchip/RK3326/Drivers/SimpleFbDxe/SimpleFbDxe.inf
+  INF Silicon/Rockchip/RK3326/Drivers/SimpleFbDxe/SimpleFbDxe.inf
 !include Platform/Rockchip/RK3326Evb/RK3326Evb.Modules.fdf.inc
 
 ################################################################################
