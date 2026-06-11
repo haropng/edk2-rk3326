@@ -1,0 +1,30 @@
+## @file
+#  RK3326 SoC DXE driver
+##
+
+[Defines]
+  INF_VERSION                    = 0x00010019
+  BASE_NAME                      = Rk3326Dxe
+  FILE_GUID                      = d4e5f6a7-b8c9-0123-def4-567890abcdef
+  MODULE_TYPE                    = DXE_DRIVER
+  VERSION_STRING                 = 1.0
+  ENTRY_POINT                    = RK3326DxeEntryPoint
+
+[Sources]
+  RK3326Dxe.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  Silicon/Rockchip/RK3326/RK3326.dec
+
+[LibraryClasses]
+  BaseLib
+  DebugLib
+  IoLib
+  PcdLib
+  UefiBootServicesTableLib
+  UefiDriverEntryPoint
+
+[Depex]
+  TRUE

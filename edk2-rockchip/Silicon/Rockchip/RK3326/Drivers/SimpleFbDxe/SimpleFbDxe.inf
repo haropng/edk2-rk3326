@@ -1,0 +1,44 @@
+## @file
+#  Simple Framebuffer GOP driver for RK3326
+#  32bpp shadow buffer + 24bpp VOPB physical via Blt conversion
+##
+
+[Defines]
+  INF_VERSION                    = 0x00010019
+  BASE_NAME                      = Rk3326SimpleFbDxe
+  FILE_GUID                      = f1d2e3a4-b5c6-7890-1234-567890abcdef
+  MODULE_TYPE                    = DXE_DRIVER
+  VERSION_STRING                 = 1.0
+  ENTRY_POINT                    = SimpleFbDxeInitialize
+
+[Sources]
+  SimpleFbDxe.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  Silicon/Rockchip/RK3326/RK3326.dec
+
+[LibraryClasses]
+  BaseLib
+  BaseMemoryLib
+  CacheMaintenanceLib
+  DebugLib
+  IoLib
+  MemoryAllocationLib
+  PcdLib
+  UefiBootServicesTableLib
+  UefiDriverEntryPoint
+  UefiLib
+
+[Protocols]
+  gEfiDevicePathProtocolGuid
+  gEfiGraphicsOutputProtocolGuid
+
+[FixedPcd]
+  gRK3326TokenSpaceGuid.PcdMipiFrameBufferAddress
+  gRK3326TokenSpaceGuid.PcdMipiFrameBufferWidth
+  gRK3326TokenSpaceGuid.PcdMipiFrameBufferHeight
+
+[Depex]
+  TRUE

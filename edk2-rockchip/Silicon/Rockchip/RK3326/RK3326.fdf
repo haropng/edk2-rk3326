@@ -1,0 +1,227 @@
+## @file
+#  RK3326 (PX30) Flash Description File
+#
+#  FD layout: 2MB @ 0x00200000 (BL33 load address)
+#    - FV BL33_AP_UEFI at offset 0, size 0x1E0000
+#    - NV variable store at 0x1E0000
+#
+#  Copyright (c) 2024-2026, RK3326 EDK2 Port
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+
+[FD.NOR_FLASH_IMAGE]
+BaseAddress   = 0x00200000
+Size          = 0x00200000
+ErasePolarity = 1
+BlockSize     = 0x00001000
+NumBlocks     = 0x200
+
+0x00000000|0x001E0000
+FV = BL33_AP_UEFI
+
+0x001E0000|0x00010000
+gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageVariableBase|gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageVariableSize
+DATA = {
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+}
+
+0x001F0000|0x00010000
+DATA = {
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+}
+
+################################################################################
+# FV BL33_AP_UEFI — PEI-less SEC + compressed DXE
+################################################################################
+
+[FV.BL33_AP_UEFI]
+FvAlignment        = 8
+ERASE_POLARITY     = 1
+MEMORY_MAPPED      = TRUE
+STICKY_WRITE       = TRUE
+LOCK_CAP           = TRUE
+LOCK_STATUS        = TRUE
+WRITE_DISABLED_CAP = TRUE
+WRITE_ENABLED_CAP  = TRUE
+WRITE_STATUS       = TRUE
+WRITE_LOCK_CAP     = TRUE
+WRITE_LOCK_STATUS  = TRUE
+READ_DISABLED_CAP  = TRUE
+READ_ENABLED_CAP   = TRUE
+READ_STATUS        = TRUE
+READ_LOCK_CAP      = TRUE
+READ_LOCK_STATUS   = TRUE
+
+  INF ArmPlatformPkg/PeilessSec/PeilessSec.inf
+
+  FILE FV_IMAGE = 9E21FD93-9C72-4c15-8C4B-E77F1DB2D792 {
+    SECTION GUIDED EE4E5898-3914-4259-9D6E-DC7BD79403CF PROCESSING_REQUIRED = TRUE {
+      SECTION FV_IMAGE = FVMAIN
+    }
+  }
+
+################################################################################
+# FVMAIN — DXE phase drivers
+################################################################################
+
+[FV.FvMain]
+FvNameGuid         = d4d0c472-eb82-482c-bd53-6da8e256661e
+BlockSize          = 0x40
+NumBlocks          = 0
+FvAlignment        = 16
+ERASE_POLARITY     = 1
+MEMORY_MAPPED      = TRUE
+STICKY_WRITE       = TRUE
+LOCK_CAP           = TRUE
+LOCK_STATUS        = TRUE
+WRITE_DISABLED_CAP = TRUE
+WRITE_ENABLED_CAP  = TRUE
+WRITE_STATUS       = TRUE
+WRITE_LOCK_CAP     = TRUE
+WRITE_LOCK_STATUS  = TRUE
+READ_DISABLED_CAP  = TRUE
+READ_ENABLED_CAP   = TRUE
+READ_STATUS        = TRUE
+READ_LOCK_CAP      = TRUE
+READ_LOCK_STATUS   = TRUE
+
+  # APRIORI DXE — load PCD first
+  APRIORI DXE {
+    INF MdeModulePkg/Universal/PCD/Dxe/Pcd.inf
+  }
+
+  #
+  # DXE Core and Architectural Protocols
+  #
+  INF MdeModulePkg/Core/Dxe/DxeMain.inf
+  INF MdeModulePkg/Universal/PCD/Dxe/Pcd.inf
+  INF ArmPkg/Drivers/CpuDxe/CpuDxe.inf
+  INF MdeModulePkg/Core/RuntimeDxe/RuntimeDxe.inf
+  INF MdeModulePkg/Universal/SecurityStubDxe/SecurityStubDxe.inf
+  INF MdeModulePkg/Universal/CapsuleRuntimeDxe/CapsuleRuntimeDxe.inf
+  INF EmbeddedPkg/EmbeddedMonotonicCounter/EmbeddedMonotonicCounter.inf
+  INF MdeModulePkg/Universal/ResetSystemRuntimeDxe/ResetSystemRuntimeDxe.inf
+  INF EmbeddedPkg/RealTimeClockRuntimeDxe/RealTimeClockRuntimeDxe.inf
+  INF EmbeddedPkg/MetronomeDxe/MetronomeDxe.inf
+  INF MdeModulePkg/Universal/HiiDatabaseDxe/HiiDatabaseDxe.inf
+  INF SecurityPkg/RandomNumberGenerator/RngDxe/RngDxe.inf
+  INF SecurityPkg/Hash2DxeCrypto/Hash2DxeCrypto.inf
+
+  #
+  # Variable services
+  #
+  INF MdeModulePkg/Universal/Variable/RuntimeDxe/VariableRuntimeDxe.inf
+
+  #
+  # Console
+  #
+  INF MdeModulePkg/Universal/Console/ConPlatformDxe/ConPlatformDxe.inf
+  INF MdeModulePkg/Universal/Console/ConSplitterDxe/ConSplitterDxe.inf
+  # GraphicsConsoleDxe disabled — 480x640 portrait too narrow for 80 columns
+  # INF MdeModulePkg/Universal/Console/GraphicsConsoleDxe/GraphicsConsoleDxe.inf
+  INF MdeModulePkg/Universal/Console/TerminalDxe/TerminalDxe.inf
+  INF MdeModulePkg/Universal/SerialDxe/SerialDxe.inf
+
+  #
+  # GIC
+  #
+  INF ArmPkg/Drivers/ArmGicDxe/ArmGicDxe.inf
+
+  #
+  # Timer
+  #
+  INF ArmPkg/Drivers/TimerDxe/TimerDxe.inf
+  INF MdeModulePkg/Universal/WatchdogTimerDxe/WatchdogTimer.inf
+
+  #
+  # FAT + GPT
+  #
+  INF MdeModulePkg/Universal/Disk/DiskIoDxe/DiskIoDxe.inf
+  INF MdeModulePkg/Universal/Disk/PartitionDxe/PartitionDxe.inf
+  INF FatPkg/EnhancedFatDxe/Fat.inf
+  INF MdeModulePkg/Universal/Disk/UnicodeCollation/EnglishDxe/EnglishDxe.inf
+
+  #
+  # SD/eMMC
+  #
+!if $(RK_SD_ENABLE) == TRUE || $(RK_EMMC_ENABLE) == TRUE
+  INF MdeModulePkg/Bus/Sd/SdDxe/SdDxe.inf
+  INF MdeModulePkg/Bus/Sd/EmmcDxe/EmmcDxe.inf
+!endif
+
+  #
+  # BDS
+  #
+  INF MdeModulePkg/Universal/BootManagerPolicyDxe/BootManagerPolicyDxe.inf
+  INF MdeModulePkg/Universal/DevicePathDxe/DevicePathDxe.inf
+  INF MdeModulePkg/Universal/SetupBrowserDxe/SetupBrowserDxe.inf
+  INF MdeModulePkg/Universal/DisplayEngineDxe/DisplayEngineDxe.inf
+  INF MdeModulePkg/Universal/BdsDxe/BdsDxe.inf
+  INF MdeModulePkg/Application/UiApp/UiApp.inf
+
+  #
+  # Shell
+  #
+  INF ShellPkg/Application/Shell/Shell.inf
+
+  #
+  # RK3326 SoC drivers
+  #
+  INF Silicon/Rockchip/RK3326/Drivers/RK3326Dxe/RK3326Dxe.inf
+  INF Silicon/Rockchip/RK3326/Drivers/FdtDxe/FdtDxe.inf
+  # INF Silicon/Rockchip/RK3326/Drivers/SimpleFbDxe/SimpleFbDxe.inf
+!include Platform/Rockchip/RK3326Evb/RK3326Evb.Modules.fdf.inc
+
+################################################################################
+# Build Rules
+################################################################################
+
+[Rule.Common.SEC]
+  FILE SEC = $(NAMED_GUID) RELOCS_STRIPPED FIXED {
+    TE  TE Align = Auto $(INF_OUTPUT)/$(MODULE_NAME).efi
+  }
+
+[Rule.Common.PEI_CORE]
+  FILE PEI_CORE = $(NAMED_GUID) FIXED {
+    TE  TE Align = Auto $(INF_OUTPUT)/$(MODULE_NAME).efi
+  }
+
+[Rule.Common.PEIM]
+  FILE PEIM = $(NAMED_GUID) FIXED {
+     PEI_DEPEX PEI_DEPEX Optional $(INF_OUTPUT)/$(MODULE_NAME).depex
+     TE  TE Align = Auto $(INF_OUTPUT)/$(MODULE_NAME).efi
+  }
+
+[Rule.Common.DXE_CORE]
+  FILE DXE_CORE = $(NAMED_GUID) {
+    PE32 PE32 $(INF_OUTPUT)/$(MODULE_NAME).efi
+  }
+
+[Rule.Common.UEFI_DRIVER]
+  FILE DRIVER = $(NAMED_GUID) {
+    DXE_DEPEX DXE_DEPEX Optional $(INF_OUTPUT)/$(MODULE_NAME).depex
+    PE32 PE32 $(INF_OUTPUT)/$(MODULE_NAME).efi
+  }
+
+[Rule.Common.DXE_DRIVER]
+  FILE DRIVER = $(NAMED_GUID) {
+    DXE_DEPEX DXE_DEPEX Optional $(INF_OUTPUT)/$(MODULE_NAME).depex
+    PE32 PE32 $(INF_OUTPUT)/$(MODULE_NAME).efi
+  }
+
+[Rule.Common.DXE_RUNTIME_DRIVER]
+  FILE DRIVER = $(NAMED_GUID) {
+    DXE_DEPEX DXE_DEPEX Optional $(INF_OUTPUT)/$(MODULE_NAME).depex
+    PE32 PE32 $(INF_OUTPUT)/$(MODULE_NAME).efi
+  }
+
+[Rule.Common.UEFI_APPLICATION]
+  FILE APPLICATION = $(NAMED_GUID) {
+    PE32 PE32 $(INF_OUTPUT)/$(MODULE_NAME).efi
+  }

@@ -1,0 +1,34 @@
+## @file
+#  FdtDxe for RK3326 — DTB load & config table install
+##
+
+[Defines]
+  INF_VERSION                    = 0x00010019
+  BASE_NAME                      = Rk3326FdtDxe
+  FILE_GUID                      = e8a0b2cd-9d7f-4e8e-c6b7-4e5d6f7a8b9c
+  MODULE_TYPE                    = DXE_DRIVER
+  VERSION_STRING                 = 1.0
+  ENTRY_POINT                    = FdtDxeEntryPoint
+
+[Sources]
+  FdtDxe.c
+
+[Packages]
+  EmbeddedPkg/EmbeddedPkg.dec
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+
+[LibraryClasses]
+  BaseLib
+  DebugLib
+  DxeServicesLib
+  MemoryAllocationLib
+  PcdLib
+  UefiBootServicesTableLib
+  UefiDriverEntryPoint
+
+[Guids]
+  gFdtTableGuid
+
+[Depex]
+  TRUE

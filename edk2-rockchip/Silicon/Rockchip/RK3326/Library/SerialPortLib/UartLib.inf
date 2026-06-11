@@ -1,0 +1,24 @@
+## @file
+#  DW APB UART HAL library for RK3326
+##
+
+[Defines]
+  INF_VERSION                    = 0x00010019
+  BASE_NAME                      = Rk3326UartLib
+  FILE_GUID                      = e2f3a4b5-c6d7-8901-ef12-34567890abcd
+  MODULE_TYPE                    = BASE
+  VERSION_STRING                 = 1.0
+  LIBRARY_CLASS                  = UartLib
+
+[Sources]
+  UartLib.c
+  UartLib.h
+
+[Packages]
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+
+[LibraryClasses]
+  DebugLib
+  IoLib
+  PcdLib

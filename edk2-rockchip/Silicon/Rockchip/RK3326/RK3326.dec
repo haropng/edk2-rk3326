@@ -1,0 +1,44 @@
+## @file
+#  RK3326 (PX30) SoC Package Declaration
+#
+#  RK3326 = PX30: 4x Cortex-A35, GIC-400 (GICv2)
+#  No PCIe, no USB3, no SATA, VOPB display only.
+#
+#  Copyright (c) 2024-2026, RK3326 EDK2 Port
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+
+[Defines]
+  DEC_SPECIFICATION              = 0x00010019
+  PACKAGE_NAME                   = RK3326
+  PACKAGE_GUID                   = c5a7e4d1-8f3b-4c9e-a2d6-1e5f7b8c0a3d
+  PACKAGE_VERSION                = 0.1
+
+[Includes.common]
+  Include
+
+[Guids.common]
+  gRK3326TokenSpaceGuid = { 0xc5a7e4d1, 0x8f3b, 0x4c9e, { 0xa2, 0xd6, 0x1e, 0x5f, 0x7b, 0x8c, 0x0a, 0x3d } }
+  gRK3326DxeFormSetGuid = { 0xd6b8f5e2, 0x9c4f, 0x4d8a, { 0xb3, 0xe7, 0x2f, 0x6c, 0x8d, 0x1a, 0x5e, 0x9d } }
+
+[PcdsFixedAtBuild]
+  # RK3326 peripheral base addresses
+  gRK3326TokenSpaceGuid.PcdSdhciBaseAddr|0xFF390000|UINT64|0x00020001
+  gRK3326TokenSpaceGuid.PcdSdmmcBaseAddr|0xFF370000|UINT64|0x00020002
+  gRK3326TokenSpaceGuid.PcdFspiBaseAddr|0xFF3A0000|UINT64|0x00020003
+
+  # MIPI DSI framebuffer (set by U-Boot, read by SimpleFbDxe)
+  gRK3326TokenSpaceGuid.PcdMipiFrameBufferAddress|0x1DF00000|UINT32|0x00010400
+  gRK3326TokenSpaceGuid.PcdMipiFrameBufferWidth|480|UINT32|0x00010401
+  gRK3326TokenSpaceGuid.PcdMipiFrameBufferHeight|640|UINT32|0x00010402
+
+  # Config table mode (RK3326 is FDT-only)
+  gRK3326TokenSpaceGuid.PcdFdtCompatModeDefault|1|UINT32|0x00010351
+
+  # Status LED
+  gRK3326TokenSpaceGuid.PcdStatusLedGpio|0xFF|UINT8|0x00010500
+  gRK3326TokenSpaceGuid.PcdStatusLedGpioPolarity|TRUE|BOOLEAN|0x00010501
+
+[PcdsFixedAtBuild, PcdsDynamic]
+  gRK3326TokenSpaceGuid.PcdConfigTableMode|0|UINT32|0x00000300
+  gRK3326TokenSpaceGuid.PcdFdtCompatMode|0|UINT32|0x00000351

@@ -1,0 +1,39 @@
+## @file
+#  ArmPlatformLib for RK3326
+##
+
+[Defines]
+  INF_VERSION                    = 0x00010019
+  BASE_NAME                      = Rk3326PlatformLib
+  FILE_GUID                      = a5d7e9fb-6b4c-4e8d-d3f8-1b2c4e5f6a7d
+  MODULE_TYPE                    = BASE
+  VERSION_STRING                 = 1.0
+  LIBRARY_CLASS                  = ArmPlatformLib
+
+[Sources]
+  PlatformLib.c
+
+[Packages]
+  ArmPkg/ArmPkg.dec
+  ArmPlatformPkg/ArmPlatformPkg.dec
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  EmbeddedPkg/EmbeddedPkg.dec
+  Silicon/Rockchip/RK3326/RK3326.dec
+
+[LibraryClasses]
+  ArmLib
+  DebugLib
+  IoLib
+  PcdLib
+
+[FixedPcd]
+  gArmTokenSpaceGuid.PcdFdBaseAddress
+  gArmTokenSpaceGuid.PcdFdSize
+  gArmTokenSpaceGuid.PcdFvBaseAddress
+  gArmTokenSpaceGuid.PcdFvSize
+  gArmTokenSpaceGuid.PcdSystemMemoryBase
+  gArmTokenSpaceGuid.PcdSystemMemorySize
+
+[Ppis]
+  gArmMpCoreInfoPpiGuid

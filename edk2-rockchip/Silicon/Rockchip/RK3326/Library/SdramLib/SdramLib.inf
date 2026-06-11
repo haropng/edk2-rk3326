@@ -1,0 +1,27 @@
+## @file
+#  SdramLib for RK3326 — DMC-based DRAM size detection
+##
+
+[Defines]
+  INF_VERSION                    = 0x00010019
+  BASE_NAME                      = Rk3326SdramLib
+  FILE_GUID                      = a1b2c3d4-e5f6-7890-abcd-ef1234567891
+  MODULE_TYPE                    = BASE
+  VERSION_STRING                 = 1.0
+  LIBRARY_CLASS                  = SdramLib
+
+[Sources]
+  SdramLib.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  Silicon/Rockchip/RK3326/RK3326.dec
+
+[LibraryClasses]
+  BaseLib
+  DebugLib
+  IoLib
+  PcdLib
+
+[Pcd]
+  gArmTokenSpaceGuid.PcdSystemMemorySize

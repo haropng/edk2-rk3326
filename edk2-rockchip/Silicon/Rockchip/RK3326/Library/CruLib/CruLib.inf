@@ -1,0 +1,23 @@
+## @file
+#  CruLib for RK3326
+##
+
+[Defines]
+  INF_VERSION                    = 0x00010019
+  BASE_NAME                      = Rk3326CruLib
+  FILE_GUID                      = b2c3d4e5-f6a7-8901-bcde-f12345678901
+  MODULE_TYPE                    = BASE
+  VERSION_STRING                 = 1.0
+  LIBRARY_CLASS                  = CruLib
+
+[Sources]
+  CruLib.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  Silicon/Rockchip/RK3326/RK3326.dec
+
+[LibraryClasses]
+  BaseLib
+  DebugLib
+  IoLib

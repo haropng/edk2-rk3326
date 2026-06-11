@@ -1,0 +1,27 @@
+## @file
+#  SerialPortLib for RK3326 — DW APB UART @ UART2 (0xFF160000)
+##
+
+[Defines]
+  INF_VERSION                    = 0x00010019
+  BASE_NAME                      = Rk3326SerialPortLib
+  FILE_GUID                      = f1d2e3a4-b5c6-7890-def1-234567890abc
+  MODULE_TYPE                    = BASE
+  VERSION_STRING                 = 1.0
+  LIBRARY_CLASS                  = SerialPortLib
+
+[Sources]
+  SerialPortLib.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  Silicon/Rockchip/RK3326/RK3326.dec
+
+[LibraryClasses]
+  IoLib
+  PcdLib
+  UartLib
+
+[Pcd]
+  gEfiMdePkgTokenSpaceGuid.PcdUartDefaultBaudRate
