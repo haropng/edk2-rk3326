@@ -1,9 +1,9 @@
 ## @file
 #  RK3326 (PX30) Flash Description File
 #
-#  FD layout: 2MB @ 0x00200000 (BL33 load address)
-#    - FV BL33_AP_UEFI at offset 0, size 0x1E0000
-#    - NV variable store at 0x1E0000
+#  FD layout: 4MB @ 0x00200000 (BL33 load address)
+#    - FV BL33_AP_UEFI at offset 0, size 0x3E0000
+#    - NV variable store at 0x3E0000
 #
 #  Copyright (c) 2024-2026, RK3326 EDK2 Port
 #  SPDX-License-Identifier: BSD-2-Clause-Patent
@@ -11,15 +11,15 @@
 
 [FD.NOR_FLASH_IMAGE]
 BaseAddress   = 0x00200000
-Size          = 0x00200000
+Size          = 0x00400000
 ErasePolarity = 1
 BlockSize     = 0x00001000
-NumBlocks     = 0x200
+NumBlocks     = 0x400
 
-0x00000000|0x001E0000
+0x00000000|0x003E0000
 FV = BL33_AP_UEFI
 
-0x001E0000|0x00010000
+0x003E0000|0x00010000
 gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageVariableBase|gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageVariableSize
 DATA = {
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -28,7 +28,7 @@ DATA = {
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 }
 
-0x001F0000|0x00010000
+0x003F0000|0x00010000
 DATA = {
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -166,6 +166,13 @@ READ_LOCK_STATUS   = TRUE
 !endif
 
   #
+  # Logo (Tianocore default)
+  #
+  FILE FREEFORM = 7BB28B99-61BB-11D5-9A5D-0090273FC14D {
+    SECTION RAW = MdeModulePkg/Logo/Logo.bmp
+  }
+
+  #
   # BDS  # BDS
   #
   INF MdeModulePkg/Universal/BootManagerPolicyDxe/BootManagerPolicyDxe.inf
@@ -173,12 +180,12 @@ READ_LOCK_STATUS   = TRUE
   INF MdeModulePkg/Universal/SetupBrowserDxe/SetupBrowserDxe.inf
   INF MdeModulePkg/Universal/DisplayEngineDxe/DisplayEngineDxe.inf
   INF MdeModulePkg/Universal/BdsDxe/BdsDxe.inf
-  INF MdeModulePkg/Application/UiApp/UiApp.inf
 
   #
   # Shell
   #
   INF ShellPkg/Application/Shell/Shell.inf
+  INF MdeModulePkg/Application/UiApp/UiApp.inf
 
   #
   # RK3326 SoC drivers
@@ -191,6 +198,16 @@ READ_LOCK_STATUS   = TRUE
   # I2C host driver (PMIC bus)
   #
   INF Silicon/Rockchip/RK3326/Drivers/I2cDxe/I2cDxe.inf
+
+  #
+  # GPIO keypad (buttons → ESC / ENTER)
+  #
+  INF Silicon/Rockchip/RK3326/Drivers/GpioKeypadDxe/GpioKeypadDxe.inf
+
+  #
+  # ADC keypad (SARADC ch2 → UP/DOWN/ENTER/ESC)
+  #
+  INF Silicon/Rockchip/RK3326/Drivers/AdcKeypadDxe/AdcKeypadDxe.inf
 
   #
   # USB — conditional

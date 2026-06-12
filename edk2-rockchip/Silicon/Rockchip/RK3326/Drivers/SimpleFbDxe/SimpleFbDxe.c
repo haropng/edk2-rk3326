@@ -1,9 +1,12 @@
 /** @file
-  SimpleFbDxe for RK3326 — PCD-based, FrameBufferBltLib, RK3399 pattern.
+  SimpleFbDxe for RK3326 (PX30) — GOP driver with 90° software rotation.
 
-  Reads VOPB WIN1 registers for dynamic framebuffer address (U-Boot 6.1 BSP).
-  Uses FrameBufferBltLib for correct Blt.  Protects framebuffer from UEFI
-  memory allocator via AllocatePages(AllocateAddress).
+  Physical framebuffer: 480×640 portrait (MIPI DSI panel).
+  GOP reports 640×480 landscape — Blt rotates all operations by 90° CCW
+  with X-flip so UiApp/console render correctly on the narrow panel.
+
+  Reads VOPB WIN1 registers for dynamic framebuffer address (U-Boot BSP).
+  Protects framebuffer from UEFI memory allocator.
 
   Copyright (c) 2024-2026, RK3326 EDK2 Port
   SPDX-License-Identifier: BSD-2-Clause-Patent
@@ -17,7 +20,6 @@
 #include <Library/MemoryAllocationLib.h>
 #include <Library/CacheMaintenanceLib.h>
 #include <Library/UefiBootServicesTableLib.h>
-#include <Library/FrameBufferBltLib.h>
 #include <Library/IoLib.h>
 #include <Protocol/GraphicsOutput.h>
 #include <Soc.h>
@@ -35,8 +37,6 @@ DISPLAY_DEVICE_PATH mDp = {
     { sizeof(EFI_DEVICE_PATH_PROTOCOL), 0 } }
 };
 
-STATIC FRAME_BUFFER_CONFIGURE *mBltCfg;
-STATIC UINTN                   mBltCfgSize;
 STATIC EFI_GRAPHICS_OUTPUT_PROTOCOL mGop;
 
 STATIC EFI_STATUS EFIAPI
@@ -60,12 +60,69 @@ Blt (IN EFI_GRAPHICS_OUTPUT_PROTOCOL *T, IN EFI_GRAPHICS_OUTPUT_BLT_PIXEL *B OPT
      IN EFI_GRAPHICS_OUTPUT_BLT_OPERATION O, IN UINTN SX, IN UINTN SY,
      IN UINTN DX, IN UINTN DY, IN UINTN W, IN UINTN H, IN UINTN D OPTIONAL)
 {
-  EFI_TPL  Tpl;
   RETURN_STATUS R;
+  UINTN i, j, PhysStride, GopWidth;
 
-  Tpl = gBS->RaiseTPL (TPL_NOTIFY);
-  R = FrameBufferBlt (mBltCfg, B, O, SX, SY, DX, DY, W, H, D);
-  gBS->RestoreTPL (Tpl);
+  // Physical framebuffer: 480×640 portrait, stride=480
+  // GOP reports:           640×480 landscape (90° CCW, X-flipped)
+  // Mapping: logical(x,y) -> physical offset = (639-x)*480 + y
+  PhysStride = FixedPcdGet32 (PcdMipiFrameBufferWidth);   // 480
+  GopWidth   = FixedPcdGet32 (PcdMipiFrameBufferHeight);  // 640
+
+  switch (O) {
+  case EfiBltVideoFill:
+    for (j = 0; j < H; j++) {
+      for (i = 0; i < W; i++) {
+        UINT32 *pix = (UINT32 *)(UINTN)mGop.Mode->FrameBufferBase;
+        pix[(GopWidth - 1 - (DX + i)) * PhysStride + (DY + j)] = *(UINT32 *)B;
+      }
+    }
+    R = RETURN_SUCCESS;
+    break;
+
+  case EfiBltBufferToVideo:
+    {
+      UINTN SrcStride = (D == 0) ? W : (D / sizeof(EFI_GRAPHICS_OUTPUT_BLT_PIXEL));
+      for (j = 0; j < H; j++) {
+        for (i = 0; i < W; i++) {
+          UINT32 *src = (UINT32 *)B + j * SrcStride + i;
+          UINT32 *dst = (UINT32 *)(UINTN)mGop.Mode->FrameBufferBase;
+          dst[(GopWidth - 1 - (DX + i)) * PhysStride + (DY + j)] = *src;
+        }
+      }
+    }
+    R = RETURN_SUCCESS;
+    break;
+
+  case EfiBltVideoToBltBuffer:
+    {
+      UINTN DstStride = (D == 0) ? W : (D / sizeof(EFI_GRAPHICS_OUTPUT_BLT_PIXEL));
+      for (j = 0; j < H; j++) {
+        for (i = 0; i < W; i++) {
+          UINT32 *src = (UINT32 *)(UINTN)mGop.Mode->FrameBufferBase;
+          UINT32 *dst = (UINT32 *)B + j * DstStride + i;
+          *dst = src[(GopWidth - 1 - (SX + i)) * PhysStride + (SY + j)];
+        }
+      }
+    }
+    R = RETURN_SUCCESS;
+    break;
+
+  case EfiBltVideoToVideo:
+    for (j = 0; j < H; j++) {
+      for (i = 0; i < W; i++) {
+        UINT32 *fb = (UINT32 *)(UINTN)mGop.Mode->FrameBufferBase;
+        fb[(GopWidth - 1 - (DX + i)) * PhysStride + (DY + j)] =
+          fb[(GopWidth - 1 - (SX + i)) * PhysStride + (SY + j)];
+      }
+    }
+    R = RETURN_SUCCESS;
+    break;
+
+  default:
+    R = RETURN_UNSUPPORTED;
+    break;
+  }
 
   WriteBackInvalidateDataCacheRange (
     (VOID *)(UINTN)mGop.Mode->FrameBufferBase,
@@ -134,37 +191,26 @@ SimpleFbDxeInitialize (IN EFI_HANDLE Img, IN EFI_SYSTEM_TABLE *Sys)
   mGop.Mode->MaxMode                    = 1;
   mGop.Mode->Mode                       = 0;
   mGop.Mode->Info->Version              = 0;
-  mGop.Mode->Info->HorizontalResolution = Width;
-  mGop.Mode->Info->VerticalResolution   = Height;
+  // Report landscape 640×480 (physical framebuffer is 480×640 portrait,
+  // 90° CCW rotation done in Blt function)
+  mGop.Mode->Info->HorizontalResolution = Height;   // 640
+  mGop.Mode->Info->VerticalResolution   = Width;    // 480
   mGop.Mode->Info->PixelFormat          = PixelBlueGreenRedReserved8BitPerColor;
-  mGop.Mode->Info->PixelsPerScanLine    = Width;
+  mGop.Mode->Info->PixelsPerScanLine    = Height;   // 640
   mGop.Mode->SizeOfInfo                 = sizeof(*mGop.Mode->Info);
   mGop.Mode->FrameBufferBase            = FbAddr;
-  mGop.Mode->FrameBufferSize            = Sz;
+  mGop.Mode->FrameBufferSize            = Sz;       // 480*640*4 (physical)
 
-  // Setup FrameBufferBltLib
-  mBltCfgSize = 0;
-  mBltCfg = NULL;
-  S = FrameBufferBltConfigure ((VOID *)(UINTN)FbAddr, mGop.Mode->Info,
-                               mBltCfg, &mBltCfgSize);
-  if (S == RETURN_BUFFER_TOO_SMALL) {
-    mBltCfg = AllocatePool (mBltCfgSize);
-    if (mBltCfg != NULL) {
-      S = FrameBufferBltConfigure ((VOID *)(UINTN)FbAddr, mGop.Mode->Info,
-                                   mBltCfg, &mBltCfgSize);
-    }
-  }
-  if (EFI_ERROR(S)) return S;
-
-  // Clear to black
+  // Clear physical framebuffer to black (rotated fill)
   {
     EFI_GRAPHICS_OUTPUT_BLT_PIXEL black = { 0, 0, 0, 0 };
-    FrameBufferBlt (mBltCfg, &black, EfiBltVideoFill, 0, 0, 0, 0, Width, Height, 0);
+    Blt (&mGop, &black, EfiBltVideoFill, 0, 0, 0, 0, Height, Width, 0);
   }
-  WriteBackInvalidateDataCacheRange ((VOID *)(UINTN)FbAddr, Sz);
 
   DEBUG ((DEBUG_INFO,
-    "SimpleFbDxe: fb=0x%X %dx%d stride=%d ready\n", Addr, Width, Height, Width*4));
+    "SimpleFbDxe: phys=%dx%d GOP=%dx%d stride=%d ready\n",
+    Width, Height, mGop.Mode->Info->HorizontalResolution,
+    mGop.Mode->Info->VerticalResolution, mGop.Mode->Info->PixelsPerScanLine));
 
   mGop.QueryMode = Qry;
   mGop.SetMode   = Set;

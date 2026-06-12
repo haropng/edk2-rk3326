@@ -1,0 +1,48 @@
+## @file
+#  ADC Keypad Driver for RK3326 (PX30) using SARADC
+#
+#  Reads SARADC channel 2 to detect resistor-ladder buttons.
+#  Installs SimpleTextInEx protocol to inject keystrokes.
+#
+#  ADC key mapping (from appolo.dts adc-keys, threshold ascending):
+#    vol-up:    < 17000 uV → UP    (scan 0x01)
+#    vol-down:  < 300000 uV → DOWN  (scan 0x02)
+#    menu:      < 987000 uV → ENTER (scan 0x0D)
+#    esc/back:  < 1310000 uV → ESC  (scan 0x17)
+#    > 1800000 uV: released (no key)
+#
+#  Copyright (c) 2024-2026, RK3326 EDK2 Port
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+
+[Defines]
+  INF_VERSION                    = 0x0001001A
+  BASE_NAME                      = AdcKeypadDxe
+  FILE_GUID                      = 9e3f5b7c-2d4a-4f8e-a6d7-1e5f7b8c0a3d
+  MODULE_TYPE                    = DXE_DRIVER
+  VERSION_STRING                 = 1.0
+  ENTRY_POINT                    = AdcKeypadEntryPoint
+
+[Sources.common]
+  AdcKeypadDxe.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  Silicon/Rockchip/RK3326/RK3326.dec
+
+[LibraryClasses]
+  BaseLib
+  BaseMemoryLib
+  DebugLib
+  IoLib
+  MemoryAllocationLib
+  TimerLib
+  UefiBootServicesTableLib
+  UefiDriverEntryPoint
+
+[Protocols]
+  gEfiSimpleTextInputExProtocolGuid
+
+[Depex]
+  TRUE

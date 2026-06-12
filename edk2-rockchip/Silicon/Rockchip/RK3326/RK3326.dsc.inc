@@ -99,6 +99,7 @@
   DefaultExceptionHandlerLib|MdeModulePkg/Library/CpuExceptionHandlerLibNull/CpuExceptionHandlerLibNull.inf
   CpuExceptionHandlerLib|UefiCpuPkg/Library/CpuExceptionHandlerLib/DxeCpuExceptionHandlerLib.inf
   ArmSmcLib|MdePkg/Library/ArmSmcLib/ArmSmcLib.inf
+  ArmGicLib|Silicon/Rockchip/RK3326/Library/ArmGicLibStub/ArmGicLibStub.inf
   ArmMonitorLib|ArmPkg/Library/ArmMonitorLib/ArmMonitorLib.inf
   ArmMmuLib|UefiCpuPkg/Library/ArmMmuLib/ArmMmuBaseLib.inf
   ArmLib|MdePkg/Library/ArmLib/ArmBaseLib.inf
@@ -254,10 +255,10 @@
 
   # Emulated variable storage (no physical NOR flash on this board)
   gEfiMdeModulePkgTokenSpaceGuid.PcdEmuVariableNvModeEnable|TRUE
-  # Boot directly to Shell — UiApp (BootManagerMenu) crashes on 480px screen
-  gEfiMdeModulePkgTokenSpaceGuid.PcdBootManagerMenuFile|{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }
-  gArmTokenSpaceGuid.PcdUefiShellDefaultBootEnable|TRUE
-  gEfiShellPkgTokenSpaceGuid.PcdShellLibAutoInitialize|FALSE
+  # UiApp (standard UEFI Boot Manager)
+  gEfiMdeModulePkgTokenSpaceGuid.PcdBootManagerMenuFile|{ 0x21, 0xaa, 0x2c, 0x46, 0x14, 0x76, 0x03, 0x45, 0x83, 0x6e, 0x8a, 0xb6, 0xf4, 0x66, 0x23, 0x31 }
+  gArmTokenSpaceGuid.PcdUefiShellDefaultBootEnable|FALSE
+  gEfiShellPkgTokenSpaceGuid.PcdShellLibAutoInitialize|TRUE
 
   gEfiMdeModulePkgTokenSpaceGuid.PcdMaxVariableSize|0x2000
   gEfiMdeModulePkgTokenSpaceGuid.PcdMaxAuthVariableSize|0x2800
@@ -291,13 +292,13 @@
   # DRAM
   #
   gArmTokenSpaceGuid.PcdSystemMemoryBase|0x00000000
-  gArmTokenSpaceGuid.PcdSystemMemorySize|0x1F000000    # 496MB (board has ~502MB)
+  gArmTokenSpaceGuid.PcdSystemMemorySize|0x1F400000    # 500MB
 
   #
   # FD/FV — BL33 loaded at 0x00200000 by SPL/FIT
   #
   gArmTokenSpaceGuid.PcdFdBaseAddress|0x00200000
-  gArmTokenSpaceGuid.PcdFdSize|0x00200000
+  gArmTokenSpaceGuid.PcdFdSize|0x00400000
   gArmTokenSpaceGuid.PcdFvBaseAddress|0x00200000
   gArmTokenSpaceGuid.PcdFvSize|0x001E0000
 
@@ -319,7 +320,7 @@
   gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageVariableBase64|0x003E0000
 
 [PcdsDynamicHii.common.DEFAULT]
-  gEfiMdePkgTokenSpaceGuid.PcdPlatformBootTimeOut|L"Timeout"|gEfiGlobalVariableGuid|0x0|0
+  gEfiMdePkgTokenSpaceGuid.PcdPlatformBootTimeOut|L"Timeout"|gEfiGlobalVariableGuid|0x0|5
   gEfiMdeModulePkgTokenSpaceGuid.PcdBootDiscoveryPolicy|L"BootDiscoveryPolicy"|gBootDiscoveryPolicyMgrFormsetGuid|0x0|2
 
 ################################################################################
@@ -428,14 +429,6 @@
   MdeModulePkg/Universal/SetupBrowserDxe/SetupBrowserDxe.inf
   MdeModulePkg/Universal/DisplayEngineDxe/DisplayEngineDxe.inf
   MdeModulePkg/Universal/BdsDxe/BdsDxe.inf
-  MdeModulePkg/Application/UiApp/UiApp.inf {
-    <LibraryClasses>
-      NULL|MdeModulePkg/Library/BootDiscoveryPolicyUiLib/BootDiscoveryPolicyUiLib.inf
-      NULL|MdeModulePkg/Library/DeviceManagerUiLib/DeviceManagerUiLib.inf
-      NULL|MdeModulePkg/Library/BootManagerUiLib/BootManagerUiLib.inf
-      NULL|MdeModulePkg/Library/BootMaintenanceManagerUiLib/BootMaintenanceManagerUiLib.inf
-      PcdLib|MdePkg/Library/DxePcdLib/DxePcdLib.inf
-  }
 
   #
   # UEFI Shell
@@ -461,6 +454,11 @@
   }
 
   #
+  # UiApp (standard UEFI Boot Manager)
+  #
+  MdeModulePkg/Application/UiApp/UiApp.inf
+
+  #
   # RK3326 SoC drivers
   #
   Silicon/Rockchip/RK3326/Drivers/RK3326Dxe/RK3326Dxe.inf
@@ -471,6 +469,16 @@
   # I2C host driver (I2C0 = PMIC bus @ RK817 0x20)
   #
   Silicon/Rockchip/RK3326/Drivers/I2cDxe/I2cDxe.inf
+
+  #
+  # GPIO keypad — buttons on GPIO0 PB5 (play→ESC) & PB7 (vol-→ENTER)
+  #
+  Silicon/Rockchip/RK3326/Drivers/GpioKeypadDxe/GpioKeypadDxe.inf
+
+  #
+  # ADC keypad — SARADC ch2 resistor-ladder buttons → UP/DOWN/ENTER/ESC
+  #
+  Silicon/Rockchip/RK3326/Drivers/AdcKeypadDxe/AdcKeypadDxe.inf
 
   #
   # USB — conditional (RK3326: USB2 OTG + EHCI + OHCI, no USB3)

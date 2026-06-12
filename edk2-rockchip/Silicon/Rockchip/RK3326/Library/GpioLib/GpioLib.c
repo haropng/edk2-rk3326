@@ -209,7 +209,7 @@ GpioPinRead (
 
   if (Pin > 31) return FALSE;
   Base = GpioBase (Group);
-  Reg  = GPIO_SWPORT_REG (Pin, GPIO_SWPORT_DR);
+  Reg  = GPIO_SWPORT_REG (Pin, GPIO_EXT_PORTA);
   return (MmioRead32 (Base + Reg) & (1U << (Pin % 16))) != 0;
 }
 

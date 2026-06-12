@@ -615,7 +615,7 @@ SendCommand (
   // they are cleared by our reset sequence.
   //
   if (CmdIdx == 2) {
-    DEBUG ((DEBUG_INFO, "Px30Emmc: pre-CMD2 RESP: R0=0x%08x R1=0x%08x R2=0x%08x R3=0x%08x STAT=0x%08x\n",
+    DEBUG ((DEBUG_VERBOSE, "Px30Emmc: pre-CMD2 RESP: R0=0x%08x R1=0x%08x R2=0x%08x R3=0x%08x STAT=0x%08x\n",
             DwEmmcRead (DWEMMC_RESP0), DwEmmcRead (DWEMMC_RESP1),
             DwEmmcRead (DWEMMC_RESP2), DwEmmcRead (DWEMMC_RESP3),
             DwEmmcRead (DWEMMC_STATUS)));
@@ -786,7 +786,7 @@ LogResponse:
                 DwEmmcRead (DWEMMC_RESP2), DwEmmcRead (DWEMMC_RESP3),
                 DwEmmcRead (DWEMMC_CLKDIV)));
       } else {
-        DEBUG ((DEBUG_INFO, "Px30Emmc: cmd %d OK RINTSTS=0x%x RESP0=0x%08x CLKDIV=%d\n",
+        DEBUG ((DEBUG_VERBOSE, "Px30Emmc: cmd %d OK RINTSTS=0x%x RESP0=0x%08x CLKDIV=%d\n",
                 CmdIdx, Data, DwEmmcRead (DWEMMC_RESP0),
                 DwEmmcRead (DWEMMC_CLKDIV)));
       }
@@ -1157,7 +1157,7 @@ Px30EmmcReadBlockData (
     InvalidateDataCacheRange (mDmaBuffer, EMMC_BLOCK_SIZE);
 
     WarmData = *(UINT32 *)mDmaBuffer;
-    DEBUG ((DEBUG_INFO,
+    DEBUG ((DEBUG_VERBOSE,
             "Px30Emmc: warm-up done (first word=0x%08x)\n", WarmData));
 
     //
@@ -1247,7 +1247,7 @@ Px30EmmcReadBlockData (
         break;
       }
 
-      DEBUG ((DEBUG_ERROR,
+      DEBUG ((DEBUG_VERBOSE,
               "Px30Emmc: LBA 0x%llx stale data, retry %d/5\n", Lba, Retry + 1));
 
       //
@@ -1305,7 +1305,7 @@ Px30EmmcReadBlockData (
   //
   if ((Lba == 0 || Lba == 1 || Lba == 0x5a000) &&
       (mEmmcCommand & 0x3F) == MMC_INDX(17)) {
-    DEBUG ((DEBUG_ERROR,
+    DEBUG ((DEBUG_VERBOSE,
             "Px30Emmc: LBA 0x%llx 1st 64B: "
             "%02x %02x %02x %02x %02x %02x %02x %02x  "
             "%02x %02x %02x %02x %02x %02x %02x %02x  "
@@ -1329,7 +1329,7 @@ Px30EmmcReadBlockData (
             ((UINT8 *)Buffer)[28], ((UINT8 *)Buffer)[29],
             ((UINT8 *)Buffer)[30], ((UINT8 *)Buffer)[31]));
     if (Lba == 0) {
-      DEBUG ((DEBUG_ERROR,
+      DEBUG ((DEBUG_VERBOSE,
               "Px30Emmc: LBA 0 MBR sig [510-511]: %02x %02x  "
               "part-entry [446-461]: %02x %02x %02x %02x %02x %02x %02x %02x "
               "%02x %02x %02x %02x %02x %02x %02x %02x\n",
