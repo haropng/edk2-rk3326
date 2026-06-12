@@ -573,9 +573,10 @@ SendCommand (
   CmdIdx = MmcCmd & 0x3F;
 
   //
-  // Small delay before command (RK3399 uses 15ms).
+  // Small delay before command.  1ms is sufficient for eMMC; avoid the
+  // 15ms legacy delay which adds 1-2s across ~100 init commands.
   //
-  MicroSecondDelay (15000);
+  MicroSecondDelay (1000);
 
   //
   // Wait until MMC is idle: DATA_BUSY clear AND DAT_FSM idle/normal.
@@ -636,7 +637,7 @@ SendCommand (
     Data = DwEmmcRead (DWEMMC_RINTSTS);
     PollCount++;
 
-    if (PollCount >= 20000) {
+    if (PollCount >= 5000) {
       DEBUG ((DEBUG_ERROR,
               "Px30Emmc: cmd %d TIMEOUT after %d polls RINTSTS=0x%x STAT=0x%08x\n",
               CmdIdx, PollCount, Data, DwEmmcRead (DWEMMC_STATUS)));
@@ -1441,7 +1442,11 @@ Px30EmmcSetIos (
       Data &= ~BIT16;
       break;
     default:
-      return EFI_UNSUPPORTED;
+      //
+      // Unknown timing mode — leave UHSREG unchanged.
+      // The caller may be setting only clock/bus-width.
+      //
+      break;
     }
     DwEmmcWrite (DWEMMC_UHSREG, Data);
   }

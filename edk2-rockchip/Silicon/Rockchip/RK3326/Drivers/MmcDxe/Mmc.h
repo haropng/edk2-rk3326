@@ -54,10 +54,31 @@ typedef enum {
 } MMC_STATE;
 
 #define EMMCBACKWARD          0
-#define EMMCHS                1
-#define EMMCHS52              2
-#define EMMCHS200             3
-#define EMMCHS400             4
+#define EMMCHS26              (1 << 0)  // 1 — High-Speed @26MHz
+#define EMMCHS52              (1 << 1)  // 2 — High-Speed @52MHz
+#define EMMCHS52DDR1V8        (1 << 2)  // 4 — HS DDR @52MHz 1.8V/3V
+#define EMMCHS52DDR1V2        (1 << 3)  // 8 — HS DDR @52MHz 1.2V
+
+// EXT_CSD byte offsets
+#define EXTCSD_BUS_WIDTH      183
+#define EXTCSD_HS_TIMING      185
+#define EXTCSD_DEVICE_TYPE    196
+
+#define EMMC_TIMING_BACKWARD  0
+#define EMMC_TIMING_HS        1
+#define EMMC_TIMING_HS200     2
+#define EMMC_TIMING_HS400     3
+
+#define EMMC_BUS_WIDTH_1BIT      0
+#define EMMC_BUS_WIDTH_4BIT      1
+#define EMMC_BUS_WIDTH_8BIT      2
+#define EMMC_BUS_WIDTH_DDR_4BIT  5
+#define EMMC_BUS_WIDTH_DDR_8BIT  6
+
+#define EMMC_SWITCH_ERROR  (1 << 7)
+
+#define EMMC_CARD  1
+#define SD_CARD    2
 
 #define EMMC_CMD6_ARG_CMD_SET(a)      ((a) << 24)
 #define EMMC_CMD6_ARG_VALUE(a)        ((a) << 8)
@@ -164,6 +185,7 @@ typedef struct {
 typedef struct  {
   UINT16    RCA;
   UINT32    OCRData;
+  UINT8     CardType;    // EMMC_CARD or SD_CARD
   CID       CIDData;
   CSD       CSDData;
   ECSD      ECSDData;

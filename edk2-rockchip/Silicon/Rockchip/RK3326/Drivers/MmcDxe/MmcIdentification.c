@@ -10,7 +10,7 @@
 #include <Library/TimerLib.h>
 #include "Mmc.h"
 
-#define MAX_RETRY_COUNT         1000
+#define MAX_RETRY_COUNT         200
 #define RCA_SHIFT_OFFSET        16
 #define EMMC_CARD_SIZE          512
 
@@ -18,6 +18,12 @@
 
 #define EMMC_CMD1_CAPACITY_LESS_THAN_2GB    0x00FF8080U
 #define EMMC_CMD1_CAPACITY_GREATER_THAN_2GB 0x40FF8080U
+
+// CMD6 (SWITCH) argument construction
+#define EMMC_CMD6_ARG_ACCESS(a)  ((UINT32)((a) & 0x3) << 24)
+#define EMMC_CMD6_ARG_INDEX(i)   ((UINT32)((i) & 0xFF) << 16)
+#define EMMC_CMD6_ARG_VALUE(v)   ((UINT32)((v) & 0xFF) << 8)
+#define EMMC_CMD6_ARG_CMD_SET(s) ((UINT32)((s) & 0x7) << 0)
 
 // MMC_CSD helper macros
 #define MMC_CSD_GET_CCC(x)          (((x)[3] >> 20) & 0xFFF)
@@ -136,10 +142,149 @@ EmmcIdentificationMode (
   Media->IoAlign      = 4;
 
   MmcHostInstance->CardInfo.OCRData  = Response.Raw;
+  MmcHostInstance->CardInfo.CardType = EMMC_CARD;
 
   DEBUG ((DEBUG_INFO, "MmcDxe: eMMC detected, LastBlock=0x%llx, BlockSize=%d\n",
           Media->LastBlock, Media->BlockSize));
   return EFI_SUCCESS;
+}
+
+// ── EXT_CSD helpers ─────────────────────────────────────────────────
+
+STATIC
+EFI_STATUS
+EmmcSetEXTCSD (
+  IN MMC_HOST_INSTANCE  *MmcHostInstance,
+  IN UINT32              ExtCmdIndex,
+  IN UINT32              Value
+  )
+{
+  EFI_MMC_HOST_PROTOCOL  *Host;
+  EFI_STATUS             Status;
+  UINT32                 Argument;
+
+  Host     = MmcHostInstance->MmcHost;
+  Argument = EMMC_CMD6_ARG_ACCESS (3) | EMMC_CMD6_ARG_INDEX (ExtCmdIndex) |
+             EMMC_CMD6_ARG_VALUE (Value) | EMMC_CMD6_ARG_CMD_SET (1);
+  Status = Host->SendCommand (Host, MMC_CMD6, Argument);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "MmcDxe: CMD6 (idx=%d val=%d) failed: %r\n",
+            ExtCmdIndex, Value, Status));
+    return Status;
+  }
+  //
+  // CMD6 programs EXT_CSD; the eMMC enters Prog state.  Wait for Tran.
+  //
+  {
+    EMMC_DEVICE_STATE  State;
+    UINTN              Retries = 200;
+    do {
+      Status = EmmcGetDeviceState (MmcHostInstance, &State);
+      if (EFI_ERROR (Status)) return Status;
+    } while (State == EMMC_PRG_STATE && Retries-- > 0);
+  }
+  return EFI_SUCCESS;
+}
+
+// ── eMMC HS mode switching ──────────────────────────────────────────
+
+/**
+  Switch the eMMC device to high-speed timing mode.
+
+  Probes EXT_CSD DEVICE_TYPE for supported modes and tries, in order:
+    EMMCHS52DDR1V2 → EMMCHS52DDR1V8 → EMMCHS52 → EMMCHS26.
+
+  The host-controller SetIos() callback handles the actual clock/bus-width
+  hardware reconfiguration.
+**/
+STATIC
+EFI_STATUS
+InitializeEmmcDevice (
+  IN MMC_HOST_INSTANCE  *MmcHostInstance
+  )
+{
+  EFI_MMC_HOST_PROTOCOL  *Host = MmcHostInstance->MmcHost;
+  EFI_STATUS             Status;
+  UINT8                  DeviceType;
+  UINT32                 TimingMode[4] = {
+                           EMMCHS52DDR1V2, EMMCHS52DDR1V8,
+                           EMMCHS52,       EMMCHS26
+                         };
+  UINT32                 BusClockFreq[4] = {
+                           52000000, 52000000, 52000000, 26000000
+                         };
+  UINT32                 BusMode[4] = {
+                           EMMC_BUS_WIDTH_DDR_8BIT,
+                           EMMC_BUS_WIDTH_DDR_8BIT,
+                           EMMC_BUS_WIDTH_8BIT,
+                           EMMC_BUS_WIDTH_8BIT
+                         };
+  UINTN                  Idx;
+
+  //
+  // Read DEVICE_TYPE from the raw ECSD buffer (byte 196).
+  // The EcsdBuf was already read by EmmcIdentificationMode.
+  // We need to re-read EXT_CSD to get an up-to-date DEVICE_TYPE.
+  //
+  {
+    UINT8  EcsdBuf[512];
+    Status = Host->SendCommand (Host, MMC_CMD8, 0);
+    if (EFI_ERROR (Status)) {
+      DEBUG ((DEBUG_WARN, "MmcDxe: CMD8 re-read failed: %r\n", Status));
+      return Status;
+    }
+    ZeroMem (EcsdBuf, sizeof (EcsdBuf));
+    Status = Host->ReadBlockData (Host, 0, 512, (UINT32 *)EcsdBuf);
+    if (EFI_ERROR (Status)) {
+      DEBUG ((DEBUG_WARN, "MmcDxe: EXT_CSD re-read failed: %r\n", Status));
+      return Status;
+    }
+    DeviceType = EcsdBuf[EXTCSD_DEVICE_TYPE];
+  }
+
+  if (DeviceType == 0) {
+    DEBUG ((DEBUG_INFO, "MmcDxe: eMMC DEVICE_TYPE=0, no HS modes\n"));
+    return EFI_SUCCESS;
+  }
+
+  DEBUG ((DEBUG_INFO, "MmcDxe: eMMC DEVICE_TYPE=0x%02x\n", DeviceType));
+
+  //
+  // Set HS_TIMING = 1 in EXT_CSD to enable high-speed interface timing.
+  //
+  Status = EmmcSetEXTCSD (MmcHostInstance, EXTCSD_HS_TIMING,
+                          EMMC_TIMING_HS);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_WARN, "MmcDxe: HS_TIMING write failed: %r\n", Status));
+    // Continue without HS timing — still useful if SetIos works
+  }
+
+  //
+  // Try timing modes in priority order.
+  //
+  for (Idx = 0; Idx < 4; Idx++) {
+    Status = Host->SetIos (Host, BusClockFreq[Idx], 8, TimingMode[Idx]);
+    if (!EFI_ERROR (Status)) {
+      //
+      // Set bus width in EXT_CSD.
+      //
+      Status = EmmcSetEXTCSD (MmcHostInstance, EXTCSD_BUS_WIDTH,
+                              BusMode[Idx]);
+      if (EFI_ERROR (Status)) {
+        DEBUG ((DEBUG_ERROR, "MmcDxe: EXTCSD bus width write failed: %r\n",
+                Status));
+        return Status;
+      }
+
+      DEBUG ((DEBUG_INFO, "MmcDxe: HS mode set — %a @%d MHz\n",
+              (Idx < 2) ? "DDR52" : ((Idx == 2) ? "SDR52" : "SDR26"),
+              BusClockFreq[Idx] / 1000000));
+      return EFI_SUCCESS;
+    }
+  }
+
+  DEBUG ((DEBUG_WARN, "MmcDxe: No HS timing mode succeeded\n"));
+  return EFI_SUCCESS;  // non-fatal — card still usable at legacy speed
 }
 
 // ── SD Card Identification ──────────────────────────────────────────
@@ -183,6 +328,8 @@ InitializeSdMmcDevice (
   CmdArg = MmcHostInstance->CardInfo.RCA << 16;
   Status = MmcHost->SendCommand (MmcHost, MMC_CMD7, CmdArg);
   if (EFI_ERROR (Status)) return Status;
+
+  MmcHostInstance->CardInfo.CardType = SD_CARD;
 
   DEBUG ((DEBUG_INFO, "MmcDxe: SD card detected, LastBlock=0x%llx, BlockSize=%d\n",
           MmcHostInstance->BlockIo.Media->LastBlock, BlockSize));
@@ -317,6 +464,17 @@ InitializeMmcDevice (
   if (EFI_ERROR (Status)) {
     DEBUG ((DEBUG_ERROR, "MmcDxe: Card identification failed: %r\n", Status));
     return Status;
+  }
+
+  //
+  // For eMMC: switch to high-speed timing mode.
+  //
+  if (MmcHostInstance->CardInfo.CardType == EMMC_CARD) {
+    Status = InitializeEmmcDevice (MmcHostInstance);
+    if (EFI_ERROR (Status)) {
+      DEBUG ((DEBUG_WARN, "MmcDxe: HS mode switch failed: %r\n", Status));
+      // Non-fatal — card remains usable at legacy speed
+    }
   }
 
   // Notify transfer state
