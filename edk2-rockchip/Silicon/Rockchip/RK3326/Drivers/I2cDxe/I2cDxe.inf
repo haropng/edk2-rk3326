@@ -1,0 +1,35 @@
+## @file
+#  I2C Host Driver for RK3326 (PX30)
+#
+#  Initializes I2C0-I2C3 controllers and provides basic I2C I/O.
+#  I2C0 hosts the RK817 PMIC at address 0x20.
+#
+#  Copyright (c) 2024-2026, RK3326 EDK2 Port
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+
+[Defines]
+  INF_VERSION                    = 0x0001001A
+  BASE_NAME                      = I2cDxe
+  FILE_GUID                      = 8b2d4f1e-6c3a-4f8d-b5e7-2a1c3d4e5f6b
+  MODULE_TYPE                    = DXE_DRIVER
+  VERSION_STRING                 = 1.0
+  ENTRY_POINT                    = InitializeI2c
+
+[Sources.common]
+  I2cDxe.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  Silicon/Rockchip/RK3326/RK3326.dec
+
+[LibraryClasses]
+  BaseLib
+  DebugLib
+  IoLib
+  TimerLib
+  UefiBootServicesTableLib
+  UefiDriverEntryPoint
+
+[Depex]
+  TRUE

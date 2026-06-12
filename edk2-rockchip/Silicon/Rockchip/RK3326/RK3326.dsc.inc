@@ -83,6 +83,7 @@
   VariableFlashInfoLib|MdeModulePkg/Library/BaseVariableFlashInfoLib/BaseVariableFlashInfoLib.inf
   BmpSupportLib|MdeModulePkg/Library/BaseBmpSupportLib/BaseBmpSupportLib.inf
   NonDiscoverableDeviceRegistrationLib|MdeModulePkg/Library/NonDiscoverableDeviceRegistrationLib/NonDiscoverableDeviceRegistrationLib.inf
+  UefiUsbLib|MdePkg/Library/UefiUsbLib/UefiUsbLib.inf
   TimerLib|ArmPkg/Library/ArmArchTimerLib/ArmArchTimerLib.inf
 
   ReportStatusCodeLib|MdeModulePkg/Library/DxeReportStatusCodeLib/DxeReportStatusCodeLib.inf
@@ -465,3 +466,25 @@
   Silicon/Rockchip/RK3326/Drivers/RK3326Dxe/RK3326Dxe.inf
   Silicon/Rockchip/RK3326/Drivers/FdtDxe/FdtDxe.inf
   Silicon/Rockchip/RK3326/Drivers/SimpleFbDxe/SimpleFbDxe.inf
+
+  #
+  # I2C host driver (I2C0 = PMIC bus @ RK817 0x20)
+  #
+  Silicon/Rockchip/RK3326/Drivers/I2cDxe/I2cDxe.inf
+
+  #
+  # USB — conditional (RK3326: USB2 OTG + EHCI + OHCI, no USB3)
+  #
+!if $(RK_USB_ENABLE) == TRUE
+  Silicon/Rockchip/RK3326/Drivers/UsbHcdInitDxe/UsbHcd.inf
+  MdeModulePkg/Bus/Pci/NonDiscoverablePciDeviceDxe/NonDiscoverablePciDeviceDxe.inf
+  MdeModulePkg/Bus/Pci/EhciDxe/EhciDxe.inf
+  MdeModulePkg/Bus/Usb/UsbBusDxe/UsbBusDxe.inf
+  MdeModulePkg/Bus/Usb/UsbKbDxe/UsbKbDxe.inf
+  MdeModulePkg/Bus/Usb/UsbMassStorageDxe/UsbMassStorageDxe.inf
+!endif
+
+  #
+  # Custom MMC Block I/O driver (RK3399 pattern) — alternative to EmbeddedPkg MmcDxe
+  # Uncomment to use instead of EmbeddedPkg/Universal/MmcDxe/MmcDxe.inf:
+  # Silicon/Rockchip/RK3326/Drivers/MmcDxe/MmcDxe.inf

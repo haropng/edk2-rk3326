@@ -1,5 +1,5 @@
 ## @file
-#  GpioLib for RK3326
+#  GpioLib for RK3326 (PX30) — full GPIO + IOMUX via GRF/PMUGRF.
 ##
 
 [Defines]
@@ -15,6 +15,7 @@
 
 [Packages]
   MdePkg/MdePkg.dec
+  Silicon/Rockchip/RK3326/RK3326.dec
 
 [LibraryClasses]
   BaseLib

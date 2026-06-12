@@ -63,9 +63,10 @@
 #define EMMC_IOMUX_HI_MASK  0x0F000F00U   // pins 2,3: fn
 
 #define EMMC_BLOCK_SIZE     512
-#define EMMC_DESC_PAGE      1
-#define EMMC_DMA_BUF_SIZE   (512 * 8)
-#define EMMC_MAX_DESC_PAGES 512
+#define DWEMMC_DATA             0x100   // FIFO data port (standard DWMMC PIO)
+#define EMMC_DESC_PAGE           1
+#define EMMC_DMA_BUF_SIZE        (512 * 8)
+#define EMMC_MAX_DESC_PAGES      1     // single-block only needs 1 desc (16 bytes); 1 page holds 256
 
 typedef struct {
   UINT32  Des0;
@@ -75,6 +76,7 @@ typedef struct {
 } IDMAC_DESCRIPTOR;
 
 STATIC IDMAC_DESCRIPTOR  *mIdmacDesc;
+STATIC UINT8              *mDmaBuffer;     // page-aligned private DMA buffer
 STATIC UINT32             mEmmcCommand;
 STATIC UINT32             mEmmcArgument;
 STATIC UINT64             mBase;
@@ -837,11 +839,13 @@ Px30EmmcSendCommand (
     //
     // eMMC SWITCH (CMD6) always has a 512-byte data block (host→device).
     // The MmcDxe protocol does NOT call WriteBlockData for CMD6, so we
-    // must execute the data transfer inline here.
+    // must execute the data transfer inline here.  DMA writes are reliable
+    // on v2.70a (only reads have IDMAC issues).
     //
     {
       UINT8  *Cmd6Buf;
       UINT32  Index, Value;
+      UINT32  Data;
       EFI_STATUS  Status;
 
       Cmd6Buf = AllocatePool (512);
@@ -856,14 +860,9 @@ Px30EmmcSendCommand (
       }
       WriteBackDataCacheRange (Cmd6Buf, 512);
 
-      //
-      // Wait until idle, then set up DMA and send command.
-      //
-      {
-        UINT32  Data;
-        do { Data = DwEmmcRead (DWEMMC_STATUS); }
-        while (Data & DWEMMC_STS_DATA_BUSY);
-      }
+      do { Data = DwEmmcRead (DWEMMC_STATUS); }
+      while (Data & DWEMMC_STS_DATA_BUSY);
+
       PrepareDmaData (mIdmacDesc, 512, (UINT32 *)Cmd6Buf);
       StartDma (512);
 
@@ -1025,14 +1024,18 @@ PrepareDmaData (
   UINT32 Data;
 
   //
-  // Reset FIFO before every data transfer (matching U-Boot dwmci_prepare_data).
-  // Without this, stale FIFO state from a previous transfer (e.g. TX→RX switch)
-  // can cause FRUN spurious errors on v2.70a controllers.
+  // Reset FIFO and DMA before every data transfer, matching U-Boot:
+  //   dwmci_writel(host, DWMCI_CTRL, host->ctrl | DWMCI_RESET_FIFO | DWMCI_RESET_DMA)
   //
-  DwEmmcWrite (DWEMMC_CTRL, DwEmmcRead (DWEMMC_CTRL) | DWEMMC_CTRL_FIFO_RESET);
+  // v2.70a: without DMA_RESET, the IDMAC may not start on the next transfer,
+  // causing stale/zero data in the first 1–2 reads.
+  //
+  DwEmmcWrite (DWEMMC_CTRL,
+               DwEmmcRead (DWEMMC_CTRL) |
+               DWEMMC_CTRL_FIFO_RESET | DWEMMC_CTRL_DMA_RESET);
   do {
     Data = DwEmmcRead (DWEMMC_CTRL);
-  } while (Data & DWEMMC_CTRL_FIFO_RESET);
+  } while (Data & (DWEMMC_CTRL_FIFO_RESET | DWEMMC_CTRL_DMA_RESET));
 
   Cnt  = (Length + EMMC_DMA_BUF_SIZE - 1) / EMMC_DMA_BUF_SIZE;
   Blks = (Length + EMMC_BLOCK_SIZE - 1) / EMMC_BLOCK_SIZE;
@@ -1067,8 +1070,13 @@ PrepareDmaData (
 }
 
 // ── Read / Write Block Data ─────────────────────────────────────────
-
-#define DWEMMC_MSHCI_FIFO  ((UINT32)mBase + 0x200)
+//
+// DWMMC v2.70a DMA: single clean DMA read with IDMAC reset before each
+// transfer.  Old approach used 3 warm-up reads which corrupted caller's
+// buffer and caused memory corruption (EDK2 debug fill 0xAFAFAFAF pattern).
+//
+// Key: full BMOD SW_RESET → FIFO+DMA reset → descriptor setup → DMA read
+//      → cache invalidate.  Data validation + retry only for critical LBAs.
 
 EFI_STATUS
 Px30EmmcReadBlockData (
@@ -1080,65 +1088,264 @@ Px30EmmcReadBlockData (
 {
   EFI_STATUS  Status;
   UINT32      Data;
+  UINTN       Cnt, Blks, Idx, LastIdx;
+
+  if (Buffer == NULL || Length == 0) {
+    return EFI_INVALID_PARAMETER;
+  }
 
   if (mEmmcCommand & BIT_CMD_WAIT_PRVDATA_COMPLETE) {
     do { Data = DwEmmcRead (DWEMMC_STATUS); }
     while (Data & DWEMMC_STS_DATA_BUSY);
   }
 
-  PrepareDmaData (mIdmacDesc, Length, Buffer);
-  StartDma (Length);
-
   //
-  // Cache coherency for DMA:
+  // Full IDMAC reset via BMOD — needed before every transfer on v2.70a.
   //
-  // READ  (device → memory): Invalidate cache BEFORE DMA so stale cache
-  //        lines are discarded.  After DMA the CPU reads fresh data from
-  //        memory directly — NO post-DMA writeback (which would overwrite
-  //        the DMA data with stale cached content).
-  //
-  // WRITE (memory → device): Write back cache BEFORE DMA so the DMA sees
-  //        the current data.  No post-DMA cache op needed.
-  //
-  if ((mEmmcCommand & BIT_CMD_WRITE) == 0) {
-    //
-    // READ: invalidate before DMA
-    //
-    InvalidateDataCacheRange (Buffer, Length);
-    Status = SendCommand (mEmmcCommand, mEmmcArgument);
-  } else {
-    WriteBackDataCacheRange (Buffer, Length);
-    Status = SendCommand (mEmmcCommand, mEmmcArgument);
-  }
-
-  if (EFI_ERROR (Status)) {
-    DEBUG ((DEBUG_ERROR, "Px30Emmc: read cmd failed cmd=%d arg=0x%x BYTCNT=%d BLKSIZ=%d "
-            "DES0=0x%x IDSTS=0x%x CMD=0x%x BMOD=0x%x DBADDR=0x%x\n",
-            mEmmcCommand & 0x3F, mEmmcArgument,
-            DwEmmcRead (DWEMMC_BYTCNT), DwEmmcRead (DWEMMC_BLKSIZ),
-            mIdmacDesc->Des0, DwEmmcRead (DWEMMC_IDSTS),
-            DwEmmcRead (DWEMMC_CMD), DwEmmcRead (DWEMMC_BMOD),
-            DwEmmcRead (DWEMMC_DBADDR)));
-    return Status;
-  }
-
-  //
-  // Disable DMA and reset IDMAC after transfer (matching U-Boot).
-  // Resetting the IDMAC state machine between transfers may prevent
-  // the v2.70a CMD18 DMA-start bug.
-  //
-  DwEmmcWrite (DWEMMC_CTRL,
-               DwEmmcRead (DWEMMC_CTRL) & ~DWEMMC_CTRL_DMA_EN);
-  DwEmmcWrite (DWEMMC_BMOD,
-               DwEmmcRead (DWEMMC_BMOD) | DWEMMC_IDMAC_SWRESET);
+  DwEmmcWrite (DWEMMC_BMOD, DWEMMC_IDMAC_SWRESET);
   do {
     Data = DwEmmcRead (DWEMMC_BMOD);
   } while (Data & DWEMMC_IDMAC_SWRESET);
 
   //
-  // DMA complete → data is already in Buffer.
+  // Reset FIFO + DMA via CTRL (matching U-Boot dwmci_prepare_data).
   //
-  return EFI_SUCCESS;
+  DwEmmcWrite (DWEMMC_CTRL,
+               DwEmmcRead (DWEMMC_CTRL) |
+               DWEMMC_CTRL_FIFO_RESET | DWEMMC_CTRL_DMA_RESET);
+  do {
+    Data = DwEmmcRead (DWEMMC_CTRL);
+  } while (Data & (DWEMMC_CTRL_FIFO_RESET | DWEMMC_CTRL_DMA_RESET));
+
+  //
+  // Build descriptor chain pointing to caller's Buffer.
+  //
+  Cnt  = (Length + EMMC_DMA_BUF_SIZE - 1) / EMMC_DMA_BUF_SIZE;
+  Blks = (Length + EMMC_BLOCK_SIZE - 1) / EMMC_BLOCK_SIZE;
+  Length = EMMC_BLOCK_SIZE * Blks;
+
+  //
+  // v2.70a workaround: one warm-up DMA read into the private
+  // mDmaBuffer (not the caller's buffer!) so the IDMAC engine
+  // "wakes up" and delivers correct data on the next transfer.
+  //
+  // Without this, the first real read returns all-zeros stale data
+  // even though the command completes with RINTSTS=0x82C (no error).
+  //
+  {
+    IDMAC_DESCRIPTOR  WarmDesc;
+    UINT32            WarmData;
+
+    WarmDesc.Des0 = DWEMMC_IDMAC_DES0_OWN | DWEMMC_IDMAC_DES0_FS |
+                    DWEMMC_IDMAC_DES0_LD | DWEMMC_IDMAC_DES0_CH;
+    WarmDesc.Des1 = DWEMMC_IDMAC_DES1_BS1 (EMMC_BLOCK_SIZE);
+    WarmDesc.Des2 = (UINT32)(UINTN)mDmaBuffer;
+    WarmDesc.Des3 = 0;
+    WriteBackDataCacheRange (&WarmDesc, sizeof (WarmDesc));
+
+    DwEmmcWrite (DWEMMC_BMOD, DWEMMC_IDMAC_ENABLE | DWEMMC_IDMAC_FB);
+    DwEmmcWrite (DWEMMC_DBADDR, (UINT32)(UINTN)&WarmDesc);
+    DwEmmcWrite (DWEMMC_CTRL,
+                 DwEmmcRead (DWEMMC_CTRL) |
+                 DWEMMC_CTRL_INT_EN | DWEMMC_CTRL_DMA_EN |
+                 DWEMMC_CTRL_IDMAC_EN);
+    DwEmmcWrite (DWEMMC_BLKSIZ, EMMC_BLOCK_SIZE);
+    DwEmmcWrite (DWEMMC_BYTCNT, EMMC_BLOCK_SIZE);
+
+    InvalidateDataCacheRange (mDmaBuffer, EMMC_BLOCK_SIZE);
+    SendCommand (mEmmcCommand, mEmmcArgument);
+    InvalidateDataCacheRange (mDmaBuffer, EMMC_BLOCK_SIZE);
+
+    WarmData = *(UINT32 *)mDmaBuffer;
+    DEBUG ((DEBUG_INFO,
+            "Px30Emmc: warm-up done (first word=0x%08x)\n", WarmData));
+
+    //
+    // Full reset before real read
+    //
+    DwEmmcWrite (DWEMMC_BMOD, DWEMMC_IDMAC_SWRESET);
+    do {
+      Data = DwEmmcRead (DWEMMC_BMOD);
+    } while (Data & DWEMMC_IDMAC_SWRESET);
+
+    DwEmmcWrite (DWEMMC_CTRL,
+                 DwEmmcRead (DWEMMC_CTRL) |
+                 DWEMMC_CTRL_FIFO_RESET | DWEMMC_CTRL_DMA_RESET);
+    do {
+      Data = DwEmmcRead (DWEMMC_CTRL);
+    } while (Data & (DWEMMC_CTRL_FIFO_RESET | DWEMMC_CTRL_DMA_RESET));
+  }
+
+  //
+  // Real descriptor chain — target caller's Buffer.
+  //
+  for (Idx = 0; Idx < Cnt; Idx++) {
+    (mIdmacDesc + Idx)->Des0 = DWEMMC_IDMAC_DES0_OWN |
+                               DWEMMC_IDMAC_DES0_CH |
+                               DWEMMC_IDMAC_DES0_DIC;
+    (mIdmacDesc + Idx)->Des1 = DWEMMC_IDMAC_DES1_BS1 (EMMC_DMA_BUF_SIZE);
+    (mIdmacDesc + Idx)->Des2 = (UINT32)(UINTN)(Buffer +
+                                EMMC_DMA_BUF_SIZE / 4 * Idx);
+    (mIdmacDesc + Idx)->Des3 = (UINT32)(UINTN)(mIdmacDesc +
+                                sizeof (IDMAC_DESCRIPTOR) * (Idx + 1));
+  }
+  mIdmacDesc->Des0 |= DWEMMC_IDMAC_DES0_FS;
+
+  LastIdx = Cnt - 1;
+  (mIdmacDesc + LastIdx)->Des0 |= DWEMMC_IDMAC_DES0_LD;
+  (mIdmacDesc + LastIdx)->Des0 &= ~(DWEMMC_IDMAC_DES0_DIC |
+                                     DWEMMC_IDMAC_DES0_CH);
+  (mIdmacDesc + LastIdx)->Des1 = DWEMMC_IDMAC_DES1_BS1 (
+                                   Length - LastIdx * EMMC_DMA_BUF_SIZE);
+  (mIdmacDesc + LastIdx)->Des3 = 0;
+
+  WriteBackDataCacheRange (mIdmacDesc, Cnt * sizeof (IDMAC_DESCRIPTOR));
+
+  //
+  // Enable IDMAC, set DBADDR, enable DMA.
+  //
+  DwEmmcWrite (DWEMMC_BMOD, DWEMMC_IDMAC_ENABLE | DWEMMC_IDMAC_FB);
+  DwEmmcWrite (DWEMMC_DBADDR, (UINT32)(UINTN)mIdmacDesc);
+  DwEmmcWrite (DWEMMC_CTRL,
+               DwEmmcRead (DWEMMC_CTRL) |
+               DWEMMC_CTRL_INT_EN | DWEMMC_CTRL_DMA_EN |
+               DWEMMC_CTRL_IDMAC_EN);
+  DwEmmcWrite (DWEMMC_BLKSIZ, EMMC_BLOCK_SIZE);
+  DwEmmcWrite (DWEMMC_BYTCNT, Length);
+
+  //
+  // Single clean DMA read — no warm-ups.
+  //
+  InvalidateDataCacheRange (Buffer, Length);
+  Status = SendCommand (mEmmcCommand, mEmmcArgument);
+  if (!EFI_ERROR (Status)) {
+    InvalidateDataCacheRange (Buffer, Length);
+  }
+
+  //
+  // Validate critical LBAs (MBR/GPT) and retry if data is corrupt.
+  // v2.70a DMA may occasionally return stale data.
+  //
+  if (!EFI_ERROR (Status) &&
+      (Lba == 0 || Lba == 1) &&
+      (mEmmcCommand & 0x3F) == MMC_INDX(17)) {
+    UINTN Retry;
+    for (Retry = 0; Retry < 5; Retry++) {
+      BOOLEAN Ok = FALSE;
+      if (Lba == 0) {
+        // MBR signature
+        Ok = (((UINT8 *)Buffer)[510] == 0x55 &&
+              ((UINT8 *)Buffer)[511] == 0xAA);
+      } else {
+        // EFI PART signature
+        Ok = (((UINT8 *)Buffer)[0] == 'E' &&
+              ((UINT8 *)Buffer)[1] == 'F' &&
+              ((UINT8 *)Buffer)[2] == 'I' &&
+              ((UINT8 *)Buffer)[3] == ' ');
+      }
+      if (Ok) {
+        break;
+      }
+
+      DEBUG ((DEBUG_ERROR,
+              "Px30Emmc: LBA 0x%llx stale data, retry %d/5\n", Lba, Retry + 1));
+
+      //
+      // Retry: full IDMAC reset and re-read
+      //
+      DwEmmcWrite (DWEMMC_BMOD, DWEMMC_IDMAC_SWRESET);
+      do { Data = DwEmmcRead (DWEMMC_BMOD); }
+      while (Data & DWEMMC_IDMAC_SWRESET);
+
+      DwEmmcWrite (DWEMMC_CTRL,
+                   DwEmmcRead (DWEMMC_CTRL) |
+                   DWEMMC_CTRL_FIFO_RESET | DWEMMC_CTRL_DMA_RESET);
+      do { Data = DwEmmcRead (DWEMMC_CTRL); }
+      while (Data & (DWEMMC_CTRL_FIFO_RESET | DWEMMC_CTRL_DMA_RESET));
+
+      // Re-init descriptors (ownership consumed by previous read)
+      for (Idx = 0; Idx < Cnt; Idx++) {
+        (mIdmacDesc + Idx)->Des0 = DWEMMC_IDMAC_DES0_OWN |
+                                   DWEMMC_IDMAC_DES0_CH |
+                                   DWEMMC_IDMAC_DES0_DIC;
+        (mIdmacDesc + Idx)->Des1 = DWEMMC_IDMAC_DES1_BS1 (EMMC_DMA_BUF_SIZE);
+        (mIdmacDesc + Idx)->Des2 = (UINT32)(UINTN)(Buffer +
+                                    EMMC_DMA_BUF_SIZE / 4 * Idx);
+        (mIdmacDesc + Idx)->Des3 = (UINT32)(UINTN)(mIdmacDesc +
+                                    sizeof (IDMAC_DESCRIPTOR) * (Idx + 1));
+      }
+      mIdmacDesc->Des0 |= DWEMMC_IDMAC_DES0_FS;
+      (mIdmacDesc + LastIdx)->Des0 |= DWEMMC_IDMAC_DES0_LD;
+      (mIdmacDesc + LastIdx)->Des0 &= ~(DWEMMC_IDMAC_DES0_DIC |
+                                         DWEMMC_IDMAC_DES0_CH);
+      (mIdmacDesc + LastIdx)->Des1 = DWEMMC_IDMAC_DES1_BS1 (
+                                       Length - LastIdx * EMMC_DMA_BUF_SIZE);
+      (mIdmacDesc + LastIdx)->Des3 = 0;
+      WriteBackDataCacheRange (mIdmacDesc, Cnt * sizeof (IDMAC_DESCRIPTOR));
+
+      DwEmmcWrite (DWEMMC_BMOD, DWEMMC_IDMAC_ENABLE | DWEMMC_IDMAC_FB);
+      DwEmmcWrite (DWEMMC_DBADDR, (UINT32)(UINTN)mIdmacDesc);
+      DwEmmcWrite (DWEMMC_CTRL,
+                   DwEmmcRead (DWEMMC_CTRL) |
+                   DWEMMC_CTRL_INT_EN | DWEMMC_CTRL_DMA_EN |
+                   DWEMMC_CTRL_IDMAC_EN);
+      DwEmmcWrite (DWEMMC_BLKSIZ, EMMC_BLOCK_SIZE);
+      DwEmmcWrite (DWEMMC_BYTCNT, Length);
+
+      InvalidateDataCacheRange (Buffer, Length);
+      Status = SendCommand (mEmmcCommand, mEmmcArgument);
+      if (!EFI_ERROR (Status)) {
+        InvalidateDataCacheRange (Buffer, Length);
+      }
+    }
+  }
+
+  //
+  // Diagnostic: dump first 32 bytes of critical LBAs
+  //
+  if ((Lba == 0 || Lba == 1 || Lba == 0x5a000) &&
+      (mEmmcCommand & 0x3F) == MMC_INDX(17)) {
+    DEBUG ((DEBUG_ERROR,
+            "Px30Emmc: LBA 0x%llx 1st 64B: "
+            "%02x %02x %02x %02x %02x %02x %02x %02x  "
+            "%02x %02x %02x %02x %02x %02x %02x %02x  "
+            "%02x %02x %02x %02x %02x %02x %02x %02x  "
+            "%02x %02x %02x %02x %02x %02x %02x %02x\n",
+            Lba,
+            ((UINT8 *)Buffer)[ 0], ((UINT8 *)Buffer)[ 1],
+            ((UINT8 *)Buffer)[ 2], ((UINT8 *)Buffer)[ 3],
+            ((UINT8 *)Buffer)[ 4], ((UINT8 *)Buffer)[ 5],
+            ((UINT8 *)Buffer)[ 6], ((UINT8 *)Buffer)[ 7],
+            ((UINT8 *)Buffer)[ 8], ((UINT8 *)Buffer)[ 9],
+            ((UINT8 *)Buffer)[10], ((UINT8 *)Buffer)[11],
+            ((UINT8 *)Buffer)[12], ((UINT8 *)Buffer)[13],
+            ((UINT8 *)Buffer)[14], ((UINT8 *)Buffer)[15],
+            ((UINT8 *)Buffer)[16], ((UINT8 *)Buffer)[17],
+            ((UINT8 *)Buffer)[18], ((UINT8 *)Buffer)[19],
+            ((UINT8 *)Buffer)[20], ((UINT8 *)Buffer)[21],
+            ((UINT8 *)Buffer)[22], ((UINT8 *)Buffer)[23],
+            ((UINT8 *)Buffer)[24], ((UINT8 *)Buffer)[25],
+            ((UINT8 *)Buffer)[26], ((UINT8 *)Buffer)[27],
+            ((UINT8 *)Buffer)[28], ((UINT8 *)Buffer)[29],
+            ((UINT8 *)Buffer)[30], ((UINT8 *)Buffer)[31]));
+    if (Lba == 0) {
+      DEBUG ((DEBUG_ERROR,
+              "Px30Emmc: LBA 0 MBR sig [510-511]: %02x %02x  "
+              "part-entry [446-461]: %02x %02x %02x %02x %02x %02x %02x %02x "
+              "%02x %02x %02x %02x %02x %02x %02x %02x\n",
+              ((UINT8 *)Buffer)[510], ((UINT8 *)Buffer)[511],
+              ((UINT8 *)Buffer)[446], ((UINT8 *)Buffer)[447],
+              ((UINT8 *)Buffer)[448], ((UINT8 *)Buffer)[449],
+              ((UINT8 *)Buffer)[450], ((UINT8 *)Buffer)[451],
+              ((UINT8 *)Buffer)[452], ((UINT8 *)Buffer)[453],
+              ((UINT8 *)Buffer)[454], ((UINT8 *)Buffer)[455],
+              ((UINT8 *)Buffer)[456], ((UINT8 *)Buffer)[457],
+              ((UINT8 *)Buffer)[458], ((UINT8 *)Buffer)[459],
+              ((UINT8 *)Buffer)[460], ((UINT8 *)Buffer)[461]));
+    }
+  }
+
+  return Status;
 }
 
 EFI_STATUS
@@ -1151,49 +1358,59 @@ Px30EmmcWriteBlockData (
 {
   EFI_STATUS  Status;
   UINT32      Data;
+  UINTN       Cnt, Blks, Idx, LastIdx;
 
   if (mEmmcCommand & BIT_CMD_WAIT_PRVDATA_COMPLETE) {
     do { Data = DwEmmcRead (DWEMMC_STATUS); }
     while (Data & DWEMMC_STS_DATA_BUSY);
   }
 
-  PrepareDmaData (mIdmacDesc, Length, Buffer);
-  StartDma (Length);
-
-  //
-  // Cache coherency for DMA — same pattern as ReadBlockData (see above).
-  // For WRITE (memory → device): write back before DMA.
-  //
-  if ((mEmmcCommand & BIT_CMD_WRITE) == 0) {
-    InvalidateDataCacheRange (Buffer, Length);
-    Status = SendCommand (mEmmcCommand, mEmmcArgument);
-  } else {
-    WriteBackDataCacheRange (Buffer, Length);
-    Status = SendCommand (mEmmcCommand, mEmmcArgument);
-  }
-
-  if (EFI_ERROR (Status)) {
-    DEBUG ((DEBUG_ERROR, "Px30Emmc: write cmd failed cmd=%d arg=0x%x BYTCNT=%d BLKSIZ=%d "
-            "DES0=0x%x IDSTS=0x%x CMD=0x%x BMOD=0x%x\n",
-            mEmmcCommand & 0x3F, mEmmcArgument,
-            DwEmmcRead (DWEMMC_BYTCNT), DwEmmcRead (DWEMMC_BLKSIZ),
-            mIdmacDesc->Des0, DwEmmcRead (DWEMMC_IDSTS),
-            DwEmmcRead (DWEMMC_CMD), DwEmmcRead (DWEMMC_BMOD)));
-    return Status;
-  }
-
-  //
-  // Disable DMA and reset IDMAC after transfer.
-  //
+  // U-Boot: dwmci_prepare_data — reset FIFO + DMA
   DwEmmcWrite (DWEMMC_CTRL,
-               DwEmmcRead (DWEMMC_CTRL) & ~DWEMMC_CTRL_DMA_EN);
-  DwEmmcWrite (DWEMMC_BMOD,
-               DwEmmcRead (DWEMMC_BMOD) | DWEMMC_IDMAC_SWRESET);
+               DwEmmcRead (DWEMMC_CTRL) |
+               DWEMMC_CTRL_FIFO_RESET | DWEMMC_CTRL_DMA_RESET);
   do {
-    Data = DwEmmcRead (DWEMMC_BMOD);
-  } while (Data & DWEMMC_IDMAC_SWRESET);
+    Data = DwEmmcRead (DWEMMC_CTRL);
+  } while (Data & (DWEMMC_CTRL_FIFO_RESET | DWEMMC_CTRL_DMA_RESET));
 
-  return EFI_SUCCESS;
+  Cnt  = (Length + EMMC_DMA_BUF_SIZE - 1) / EMMC_DMA_BUF_SIZE;
+  Blks = (Length + EMMC_BLOCK_SIZE - 1) / EMMC_BLOCK_SIZE;
+  Length = EMMC_BLOCK_SIZE * Blks;
+
+  for (Idx = 0; Idx < Cnt; Idx++) {
+    (mIdmacDesc + Idx)->Des0 = DWEMMC_IDMAC_DES0_OWN |
+                               DWEMMC_IDMAC_DES0_CH |
+                               DWEMMC_IDMAC_DES0_DIC;
+    (mIdmacDesc + Idx)->Des1 = DWEMMC_IDMAC_DES1_BS1 (EMMC_DMA_BUF_SIZE);
+    (mIdmacDesc + Idx)->Des2 = (UINT32)(UINTN)(Buffer +
+                                EMMC_DMA_BUF_SIZE / 4 * Idx);
+    (mIdmacDesc + Idx)->Des3 = (UINT32)(UINTN)(mIdmacDesc +
+                                sizeof (IDMAC_DESCRIPTOR) * (Idx + 1));
+  }
+  mIdmacDesc->Des0 |= DWEMMC_IDMAC_DES0_FS;
+  LastIdx = Cnt - 1;
+  (mIdmacDesc + LastIdx)->Des0 |= DWEMMC_IDMAC_DES0_LD;
+  (mIdmacDesc + LastIdx)->Des0 &= ~(DWEMMC_IDMAC_DES0_DIC |
+                                     DWEMMC_IDMAC_DES0_CH);
+  (mIdmacDesc + LastIdx)->Des1 = DWEMMC_IDMAC_DES1_BS1 (
+                                   Length - LastIdx * EMMC_DMA_BUF_SIZE);
+  (mIdmacDesc + LastIdx)->Des3 = 0;
+  WriteBackDataCacheRange (mIdmacDesc, Cnt * sizeof (IDMAC_DESCRIPTOR));
+
+  // U-Boot order: BMOD, then DBADDR, then BLKSIZ/BYTCNT
+  DwEmmcWrite (DWEMMC_BMOD, DWEMMC_IDMAC_ENABLE | DWEMMC_IDMAC_FB);
+  DwEmmcWrite (DWEMMC_DBADDR, (UINT32)(UINTN)mIdmacDesc);
+  DwEmmcWrite (DWEMMC_CTRL,
+               DwEmmcRead (DWEMMC_CTRL) |
+               DWEMMC_CTRL_INT_EN | DWEMMC_CTRL_DMA_EN |
+               DWEMMC_CTRL_IDMAC_EN);
+  DwEmmcWrite (DWEMMC_BLKSIZ, EMMC_BLOCK_SIZE);
+  DwEmmcWrite (DWEMMC_BYTCNT, Length);
+
+  WriteBackDataCacheRange (Buffer, Length);
+  Status = SendCommand (mEmmcCommand, mEmmcArgument);
+
+  return Status;
 }
 
 // ── Set I/O Settings ────────────────────────────────────────────────
@@ -1307,6 +1524,16 @@ Px30EmmcDxeInitialize (
 
   mIdmacDesc = (IDMAC_DESCRIPTOR *)AllocatePages (EMMC_MAX_DESC_PAGES);
   if (mIdmacDesc == NULL) {
+    return EFI_OUT_OF_RESOURCES;
+  }
+
+  //
+  // Private DMA buffer — page-aligned, physically contiguous, avoids
+  // cache-coherency issues with caller-provided buffers.
+  //
+  mDmaBuffer = (UINT8 *)AllocatePages (1);
+  if (mDmaBuffer == NULL) {
+    FreePages (mIdmacDesc, EMMC_MAX_DESC_PAGES);
     return EFI_OUT_OF_RESOURCES;
   }
 

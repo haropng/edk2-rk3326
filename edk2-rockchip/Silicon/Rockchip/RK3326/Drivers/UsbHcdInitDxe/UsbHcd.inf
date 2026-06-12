@@ -1,0 +1,43 @@
+## @file
+#  USB HCD Init Driver for RK3326 (PX30)
+#
+#  Initializes USB2 OTG/EHCI/OHCI controllers, enables clocks and PHY,
+#  then registers non-discoverable devices for the EDK2 USB stack.
+#
+#  RK3326 USB IP: DWC2 OTG + EHCI + OHCI (USB2 only, no USB3)
+#
+#  Copyright (c) 2024-2026, RK3326 EDK2 Port
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+
+[Defines]
+  INF_VERSION                    = 0x0001001A
+  BASE_NAME                      = UsbHcdInitDxe
+  FILE_GUID                      = 4e8c1a3d-7b5f-4c9e-a2d6-1e5f7b8c0a3d
+  MODULE_TYPE                    = DXE_DRIVER
+  VERSION_STRING                 = 1.0
+  ENTRY_POINT                    = InitializeUsbHcd
+
+[Sources.common]
+  UsbHcd.c
+
+[Packages]
+  EmbeddedPkg/EmbeddedPkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  MdePkg/MdePkg.dec
+  Silicon/Rockchip/RK3326/RK3326.dec
+
+[LibraryClasses]
+  BaseLib
+  BaseMemoryLib
+  DebugLib
+  IoLib
+  MemoryAllocationLib
+  NonDiscoverableDeviceRegistrationLib
+  UefiBootServicesTableLib
+  UefiDriverEntryPoint
+  UefiLib
+  TimerLib
+
+[Depex]
+  TRUE

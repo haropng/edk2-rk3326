@@ -186,6 +186,23 @@ READ_LOCK_STATUS   = TRUE
   INF Silicon/Rockchip/RK3326/Drivers/RK3326Dxe/RK3326Dxe.inf
   INF Silicon/Rockchip/RK3326/Drivers/FdtDxe/FdtDxe.inf
   INF Silicon/Rockchip/RK3326/Drivers/SimpleFbDxe/SimpleFbDxe.inf
+
+  #
+  # I2C host driver (PMIC bus)
+  #
+  INF Silicon/Rockchip/RK3326/Drivers/I2cDxe/I2cDxe.inf
+
+  #
+  # USB — conditional
+  #
+!if $(RK_USB_ENABLE) == TRUE
+  INF Silicon/Rockchip/RK3326/Drivers/UsbHcdInitDxe/UsbHcd.inf
+  INF MdeModulePkg/Bus/Pci/NonDiscoverablePciDeviceDxe/NonDiscoverablePciDeviceDxe.inf
+  INF MdeModulePkg/Bus/Pci/EhciDxe/EhciDxe.inf
+  INF MdeModulePkg/Bus/Usb/UsbBusDxe/UsbBusDxe.inf
+  INF MdeModulePkg/Bus/Usb/UsbKbDxe/UsbKbDxe.inf
+  INF MdeModulePkg/Bus/Usb/UsbMassStorageDxe/UsbMassStorageDxe.inf
+!endif
 !include Platform/Rockchip/RK3326Evb/RK3326Evb.Modules.fdf.inc
 
 ################################################################################

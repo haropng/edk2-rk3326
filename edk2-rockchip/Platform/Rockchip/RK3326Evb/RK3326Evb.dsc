@@ -20,10 +20,10 @@
   SKUID_IDENTIFIER               = DEFAULT
   FLASH_DEFINITION               = Silicon/Rockchip/RK3326/RK3326.fdf
 
-  # Peripheral flags — all disabled except SD/eMMC for bring-up
+  # Peripheral flags
   DEFINE RK_SD_ENABLE            = TRUE
   DEFINE RK_EMMC_ENABLE          = TRUE
-  DEFINE RK_USB_ENABLE           = FALSE
+  DEFINE RK_USB_ENABLE           = TRUE
   DEFINE RK_GMAC_ENABLE          = FALSE
   DEFINE RK_NOR_FLASH_ENABLE     = FALSE
   DEFINE RK_DISPLAY_ENABLE       = FALSE

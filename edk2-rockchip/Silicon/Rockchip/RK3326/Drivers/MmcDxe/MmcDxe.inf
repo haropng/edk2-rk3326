@@ -1,0 +1,50 @@
+## @file
+#  MMC Block I/O DXE Driver for RK3326
+#
+#  Provides BlockIo protocol for eMMC/SD devices by consuming
+#  EFI_MMC_HOST_PROTOCOL (produced by Px30EmmcDxe or RkSdmmcDxe).
+#
+#  Ported from rk3399-edk2 MmcDxe.
+#
+#  Copyright (c) 2011-2015, ARM Limited. All rights reserved.
+#  Copyright (c) 2026, RK3326 EDK2 Port
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+
+[Defines]
+  INF_VERSION                    = 0x00010005
+  BASE_NAME                      = MmcDxe
+  FILE_GUID                      = b6f44cc0-9e45-11df-be21-0002a5d5c51b
+  MODULE_TYPE                    = DXE_DRIVER
+  VERSION_STRING                 = 1.0
+  ENTRY_POINT                    = MmcDxeInitialize
+
+[Sources.common]
+  ComponentName.c
+  Diagnostics.c
+  Mmc.c
+  MmcBlockIo.c
+  MmcDebug.c
+  MmcIdentification.c
+
+[Packages]
+  EmbeddedPkg/EmbeddedPkg.dec
+  MdePkg/MdePkg.dec
+
+[LibraryClasses]
+  BaseLib
+  BaseMemoryLib
+  DebugLib
+  UefiBootServicesTableLib
+  UefiDriverEntryPoint
+  UefiLib
+
+[Protocols]
+  gEfiBlockIoProtocolGuid
+  gEfiDevicePathProtocolGuid
+  gEfiDiskIoProtocolGuid
+  gEfiDriverDiagnostics2ProtocolGuid
+  gEmbeddedMmcHostProtocolGuid
+
+[Depex]
+  TRUE
