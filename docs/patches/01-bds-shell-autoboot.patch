@@ -1,5 +1,5 @@
 diff --git a/ArmPkg/Library/PlatformBootManagerLib/PlatformBm.c b/ArmPkg/Library/PlatformBootManagerLib/PlatformBm.c
-index ea093bb725..50db0462dd 100644
+index ea093bb725..53eda064b0 100644
 --- a/ArmPkg/Library/PlatformBootManagerLib/PlatformBm.c
 +++ b/ArmPkg/Library/PlatformBootManagerLib/PlatformBm.c
 @@ -1001,7 +1001,6 @@ PlatformBootManagerAfterConsole (
@@ -16,12 +16,12 @@ index ea093bb725..50db0462dd 100644
    //
 -  // Connect device specified by BootDiscoverPolicy variable and
 -  // refresh Boot order for newly discovered boot devices
-+  // Skip automatic boot discovery — BDS will fall through to
-+  // PlatformBootManagerUnableToBoot -> Boot Manager Menu (UiApp).
++  // For RK3326: register UEFI Shell as a boot option.
++  // BDS will auto-boot it. Type 'exit' in Shell to reach UiApp menu.
    //
 -  BootDiscoveryPolicyHandler ();
-+  // BootDiscoveryPolicyHandler ();
-+  // PlatformRegisterFvBootOption (&gUefiShellFileGuid, L"UEFI Shell", 0, &Key);
++  // BootDiscoveryPolicyHandler ();  // skip — BOOTAA64.EFI on eMMC doesn't boot
++  PlatformRegisterFvBootOption (&gUefiShellFileGuid, L"UEFI Shell", LOAD_OPTION_ACTIVE, NULL);
  
 -  //
 -  // On ARM, there is currently no reason to use the phased capsule

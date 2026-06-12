@@ -30,6 +30,7 @@
 
 [Protocols]
   gEfiAcpiTableProtocolGuid
+  gEfiAcpiSdtProtocolGuid
 
 [Depex]
   gEfiAcpiTableProtocolGuid
