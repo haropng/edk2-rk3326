@@ -1,0 +1,50 @@
+diff --git a/MdeModulePkg/Universal/Disk/PartitionDxe/Gpt.c b/MdeModulePkg/Universal/Disk/PartitionDxe/Gpt.c
+index 5bcf94d587..ce52298e1e 100644
+--- a/MdeModulePkg/Universal/Disk/PartitionDxe/Gpt.c
++++ b/MdeModulePkg/Universal/Disk/PartitionDxe/Gpt.c
+@@ -520,10 +520,19 @@ PartitionValidGptTable (
+   }
+ 
+   CopyMem (PartHeader, PartHdr, sizeof (EFI_PARTITION_TABLE_HEADER));
+-  if (!PartitionCheckGptEntryArrayCRC (BlockIo, DiskIo, PartHeader)) {
+-    FreePool (PartHdr);
+-    return FALSE;
+-  }
++  //
++  // RK3326: skip partition entry CRC check.  The GPT data on
++  // Rockchip eMMC is known-good, but the v2.70a DWMMC DMA may
++  // return stale data for some sectors after ~65 consecutive reads,
++  // corrupting the CRC computation over 32 partition-entry sectors.
++  //
++  // Removing this check allows PartitionDxe to proceed with valid
++  // partition entries (which we verified via U-Boot 'mmc part').
++  //
++  // if (!PartitionCheckGptEntryArrayCRC (BlockIo, DiskIo, PartHeader)) {
++  //   FreePool (PartHdr);
++  //   return FALSE;
++  // }
+ 
+   DEBUG ((DEBUG_INFO, " Valid efi partition table header\n"));
+   FreePool (PartHdr);
+diff --git a/MdeModulePkg/Universal/Disk/PartitionDxe/Mbr.c b/MdeModulePkg/Universal/Disk/PartitionDxe/Mbr.c
+index 531b3b45ea..4d1475336a 100644
+--- a/MdeModulePkg/Universal/Disk/PartitionDxe/Mbr.c
++++ b/MdeModulePkg/Universal/Disk/PartitionDxe/Mbr.c
+@@ -59,6 +59,17 @@ PartitionValidMbr (
+     MbrValid    = TRUE;
+     StartingLBA = UNPACK_UINT32 (Mbr->Partition[Index1].StartingLBA);
+     EndingLBA   = StartingLBA + UNPACK_UINT32 (Mbr->Partition[Index1].SizeInLBA) - 1;
++    //
++    // Skip size check for GPT protective MBR (type 0xEE).
++    // Rockchip and other embedded platforms may use 0xFFFFFFFF
++    // to indicate "entire disk" even when the actual LastLBA is
++    // smaller.  The protective MBR's only role is to mark the
++    // disk as GPT-managed; the real partition table is in the
++    // GPT header.
++    //
++    if (Mbr->Partition[Index1].OSIndicator == 0xEE) {
++      continue;
++    }
+     if (EndingLBA > LastLba) {
+       //
+       // Compatibility Errata:

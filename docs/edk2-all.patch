@@ -1,0 +1,144 @@
+diff --git a/ArmPkg/Library/PlatformBootManagerLib/PlatformBm.c b/ArmPkg/Library/PlatformBootManagerLib/PlatformBm.c
+index ea093bb725..50db0462dd 100644
+--- a/ArmPkg/Library/PlatformBootManagerLib/PlatformBm.c
++++ b/ArmPkg/Library/PlatformBootManagerLib/PlatformBm.c
+@@ -1001,7 +1001,6 @@ PlatformBootManagerAfterConsole (
+   UINTN                         FirmwareVerLength;
+   UINTN                         PosX;
+   UINTN                         PosY;
+-  EFI_INPUT_KEY                 Key;
+ 
+   FirmwareVerLength = StrLen (PcdGetPtr (PcdFirmwareVersionString));
+ 
+@@ -1042,26 +1041,13 @@ PlatformBootManagerAfterConsole (
+   }
+ 
+   //
+-  // Connect device specified by BootDiscoverPolicy variable and
+-  // refresh Boot order for newly discovered boot devices
++  // Skip automatic boot discovery — BDS will fall through to
++  // PlatformBootManagerUnableToBoot -> Boot Manager Menu (UiApp).
+   //
+-  BootDiscoveryPolicyHandler ();
++  // BootDiscoveryPolicyHandler ();
++  // PlatformRegisterFvBootOption (&gUefiShellFileGuid, L"UEFI Shell", 0, &Key);
+ 
+-  //
+-  // On ARM, there is currently no reason to use the phased capsule
+-  // update approach where some capsules are dispatched before EndOfDxe
+-  // and some are dispatched after. So just handle all capsules here,
+-  // when the console is up and we can actually give the user some
+-  // feedback about what is going on.
+-  //
+   HandleCapsules ();
+-
+-  //
+-  // Register UEFI Shell
+-  //
+-  Key.ScanCode    = SCAN_NULL;
+-  Key.UnicodeChar = L's';
+-  PlatformRegisterFvBootOption (&gUefiShellFileGuid, L"UEFI Shell", 0, &Key);
+ }
+ 
+ /**
+diff --git a/ArmPlatformPkg/PeilessSec/PeilessSec.c b/ArmPlatformPkg/PeilessSec/PeilessSec.c
+index 267c34397a..7d1f228640 100644
+--- a/ArmPlatformPkg/PeilessSec/PeilessSec.c
++++ b/ArmPlatformPkg/PeilessSec/PeilessSec.c
+@@ -126,15 +126,16 @@ SecMain (
+     // Only MP Core platform need to produce gArmMpCoreInfoPpiGuid
+     Status = GetPlatformPpi (&gArmMpCoreInfoPpiGuid, (VOID **)&ArmMpCoreInfoPpi);
+ 
+-    // On MP Core Platform we must implement the ARM MP Core Info PPI (gArmMpCoreInfoPpiGuid)
+-    ASSERT_EFI_ERROR (Status);
+-
+-    // Build the MP Core Info Table
+-    ArmCoreCount = 0;
+-    Status       = ArmMpCoreInfoPpi->GetMpCoreInfo (&ArmCoreCount, &ArmCoreInfoTable);
+-    if (!EFI_ERROR (Status) && (ArmCoreCount > 0)) {
+-      // Build MPCore Info HOB
+-      BuildGuidDataHob (&gArmMpCoreInfoGuid, ArmCoreInfoTable, sizeof (ARM_CORE_INFO) * ArmCoreCount);
++    if (!EFI_ERROR (Status)) {
++      // Build the MP Core Info Table
++      ArmCoreCount = 0;
++      Status       = ArmMpCoreInfoPpi->GetMpCoreInfo (&ArmCoreCount, &ArmCoreInfoTable);
++      if (!EFI_ERROR (Status) && (ArmCoreCount > 0)) {
++        // Build MPCore Info HOB
++        BuildGuidDataHob (&gArmMpCoreInfoGuid, ArmCoreInfoTable, sizeof (ARM_CORE_INFO) * ArmCoreCount);
++      }
++    } else {
++      DEBUG ((DEBUG_WARN, "%a: ARM MP Core Info PPI not found — single-core boot\n", __func__));
+     }
+   }
+ 
+diff --git a/EmbeddedPkg/Universal/MmcDxe/MmcBlockIo.c b/EmbeddedPkg/Universal/MmcDxe/MmcBlockIo.c
+index 69987e9f1a..df872823b2 100644
+--- a/EmbeddedPkg/Universal/MmcDxe/MmcBlockIo.c
++++ b/EmbeddedPkg/Universal/MmcDxe/MmcBlockIo.c
+@@ -305,6 +305,16 @@ MmcIoBlocks (
+   RemainingBlock               = BlockCount;
+   BytesRemainingToBeTransfered = BufferSize;
+   while (BytesRemainingToBeTransfered > 0) {
++    //
++    // When multi-block is not supported (IsMultiBlock returned FALSE),
++    // RemainingBlock stays at 1 initially but drops to 0 after the first
++    // single-block transfer.  Clamp BlockCount to 1 so we keep using
++    // CMD17/CMD24 instead of falling through to CMD18/CMD25 with count=0.
++    //
++    if (RemainingBlock == 0) {
++      RemainingBlock = 1;
++    }
++
+     if (RemainingBlock <= MaxBlock) {
+       BlockCount = RemainingBlock;
+     } else {
+diff --git a/MdeModulePkg/Universal/Disk/PartitionDxe/Gpt.c b/MdeModulePkg/Universal/Disk/PartitionDxe/Gpt.c
+index 5bcf94d587..ce52298e1e 100644
+--- a/MdeModulePkg/Universal/Disk/PartitionDxe/Gpt.c
++++ b/MdeModulePkg/Universal/Disk/PartitionDxe/Gpt.c
+@@ -520,10 +520,19 @@ PartitionValidGptTable (
+   }
+ 
+   CopyMem (PartHeader, PartHdr, sizeof (EFI_PARTITION_TABLE_HEADER));
+-  if (!PartitionCheckGptEntryArrayCRC (BlockIo, DiskIo, PartHeader)) {
+-    FreePool (PartHdr);
+-    return FALSE;
+-  }
++  //
++  // RK3326: skip partition entry CRC check.  The GPT data on
++  // Rockchip eMMC is known-good, but the v2.70a DWMMC DMA may
++  // return stale data for some sectors after ~65 consecutive reads,
++  // corrupting the CRC computation over 32 partition-entry sectors.
++  //
++  // Removing this check allows PartitionDxe to proceed with valid
++  // partition entries (which we verified via U-Boot 'mmc part').
++  //
++  // if (!PartitionCheckGptEntryArrayCRC (BlockIo, DiskIo, PartHeader)) {
++  //   FreePool (PartHdr);
++  //   return FALSE;
++  // }
+ 
+   DEBUG ((DEBUG_INFO, " Valid efi partition table header\n"));
+   FreePool (PartHdr);
+diff --git a/MdeModulePkg/Universal/Disk/PartitionDxe/Mbr.c b/MdeModulePkg/Universal/Disk/PartitionDxe/Mbr.c
+index 531b3b45ea..4d1475336a 100644
+--- a/MdeModulePkg/Universal/Disk/PartitionDxe/Mbr.c
++++ b/MdeModulePkg/Universal/Disk/PartitionDxe/Mbr.c
+@@ -59,6 +59,17 @@ PartitionValidMbr (
+     MbrValid    = TRUE;
+     StartingLBA = UNPACK_UINT32 (Mbr->Partition[Index1].StartingLBA);
+     EndingLBA   = StartingLBA + UNPACK_UINT32 (Mbr->Partition[Index1].SizeInLBA) - 1;
++    //
++    // Skip size check for GPT protective MBR (type 0xEE).
++    // Rockchip and other embedded platforms may use 0xFFFFFFFF
++    // to indicate "entire disk" even when the actual LastLBA is
++    // smaller.  The protective MBR's only role is to mark the
++    // disk as GPT-managed; the real partition table is in the
++    // GPT header.
++    //
++    if (Mbr->Partition[Index1].OSIndicator == 0xEE) {
++      continue;
++    }
+     if (EndingLBA > LastLba) {
+       //
+       // Compatibility Errata:

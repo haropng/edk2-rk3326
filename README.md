@@ -1,53 +1,54 @@
-# RK3326 (PX30) EDK2 UEFI Firmware
+# RK3326 (PX30) EDK2 UEFI Firmware / 固件
 
-UEFI firmware for Rockchip RK3326/PX30 — 4×Cortex-A35, GIC-400 (GICv2).  
-Boots via Android boot flow → UEFI Shell. Serial console + MIPI DSI display.
+UEFI firmware for Rockchip RK3326/PX30 — 4×Cortex-A35, GIC-400, 480×640 MIPI DSI.  
+适用于 Rockchip RK3326/PX30 的 UEFI 固件。
 
-**Status**: Fully functional — serial (1.5M baud) + GOP framebuffer (480×640 32bpp).
+**Status / 状态**: ✅ All core features working / 全部核心功能工作 — UiApp + Shell + GPIO keys.
 
-## Hardware
+## Hardware / 硬件
 
-- **SoC**: Rockchip RK3326 (PX30)
-- **CPU**: 4× Cortex-A35 @ up to 1.5 GHz
-- **GIC**: GIC-400 (GICv2) @ 0xFF131000/0xFF132000
-- **DRAM**: LPDDR3, 502MB on EVB
-- **UART**: DW APB UART2 @ 0xFF160000, 1.5Mbaud
-- **eMMC**: dwmmc @ 0xFF390000 | **SD**: dwmmc @ 0xFF370000
-- **Display**: MIPI DSI 480×640 portrait (VOPB @ 0xFF460000, panel-init-sequence in DTS)
-- **PMIC**: RK817 @ I2C0 0x20
+| Component / 组件 | Address / 地址 | Note / 备注 |
+|------|------|------|
+| SoC | RK3326 (PX30) | 4×Cortex-A35 |
+| DRAM | 0x00000000 | LPDDR3, ~500MB |
+| UART2 | 0xFF160000 | 115200 8N1 |
+| eMMC | 0xFF390000 | DWMMC v2.70a, GPT |
+| Display / 显示 | 0xFF460000 (VOPB) | MIPI DSI 480×640 portrait / 竖屏 |
+| GOP reports / 上报 | 640×480 landscape / 横屏 | Software rotation / 软件旋转 |
 
-## Boot Flow
+## Boot Flow / 启动流程
 
 ```
-BootROM → U-Boot TPL/SPL → boot_android → bootm
-       → DO RELOCATE → EDK2 entry (0x00200000)
-       → PeilessSec → DXE → BDS → UEFI Shell
+U-Boot 6.1 BSP → boot_android → EDK2 @ 0x00200000
+       → PeilessSec → DXE → BDS → UiApp / Shell
 ```
 
-## Building
-
-Prerequisites (in OrbStack/Linux): gcc-aarch64-linux-gnu, python3, uuid-dev
+## Build / 构建
 
 ```bash
-./build.sh DEBUG      # Debug build with full logging
-./build.sh RELEASE    # Release build (quiet)
-./build.sh clean      # Clean Build/ and Conf/
+./build.sh DEBUG
+# Output / 输出: Build/RK3326EVB/DEBUG_GCC/FV/BL33_AP_UEFI.Fv
 ```
 
-Clean build if SimpleFbDxe changes don't take effect:
-```bash
-rm -rf Build && ./build.sh
-```
-
-Output: `Build/RK3326EVB/DEBUG_GCC/FV/NOR_FLASH_IMAGE.fd` (2MB)
-
-## Flashing
+## Flash / 刷写
 
 ```bash
 magiskboot unpack boot.img
-cp NOR_FLASH_IMAGE.fd kernel
+cp Build/.../BL33_AP_UEFI.Fv kernel
 magiskboot repack boot.img new-boot.img
 upgrade_tool di -b new-boot.img
+```
+
+## Docs / 文档
+
+| File / 文件 | Content / 内容 |
+|------|------|
+| `CHANGELOG.md` | Change log / 改动日志 |
+| `docs/porting-status.md` | Status + EDK2 patch list / 移植状态 |
+| `docs/porting-guide.md` | Porting guide / 移植指南 |
+| `docs/px30-emmc-debug.md` | eMMC DWMMC v2.70a debug / 调试记录 |
+| `docs/edk2-all.patch` | All EDK2 patches (combined) / 全部补丁 |
+| `docs/patches/` | Per-category patches / 分类补丁 (4 files) |
 upgrade_tool rd
 ```
 

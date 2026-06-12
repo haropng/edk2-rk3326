@@ -1,0 +1,30 @@
+diff --git a/ArmPlatformPkg/PeilessSec/PeilessSec.c b/ArmPlatformPkg/PeilessSec/PeilessSec.c
+index 267c34397a..7d1f228640 100644
+--- a/ArmPlatformPkg/PeilessSec/PeilessSec.c
++++ b/ArmPlatformPkg/PeilessSec/PeilessSec.c
+@@ -126,15 +126,16 @@ SecMain (
+     // Only MP Core platform need to produce gArmMpCoreInfoPpiGuid
+     Status = GetPlatformPpi (&gArmMpCoreInfoPpiGuid, (VOID **)&ArmMpCoreInfoPpi);
+ 
+-    // On MP Core Platform we must implement the ARM MP Core Info PPI (gArmMpCoreInfoPpiGuid)
+-    ASSERT_EFI_ERROR (Status);
+-
+-    // Build the MP Core Info Table
+-    ArmCoreCount = 0;
+-    Status       = ArmMpCoreInfoPpi->GetMpCoreInfo (&ArmCoreCount, &ArmCoreInfoTable);
+-    if (!EFI_ERROR (Status) && (ArmCoreCount > 0)) {
+-      // Build MPCore Info HOB
+-      BuildGuidDataHob (&gArmMpCoreInfoGuid, ArmCoreInfoTable, sizeof (ARM_CORE_INFO) * ArmCoreCount);
++    if (!EFI_ERROR (Status)) {
++      // Build the MP Core Info Table
++      ArmCoreCount = 0;
++      Status       = ArmMpCoreInfoPpi->GetMpCoreInfo (&ArmCoreCount, &ArmCoreInfoTable);
++      if (!EFI_ERROR (Status) && (ArmCoreCount > 0)) {
++        // Build MPCore Info HOB
++        BuildGuidDataHob (&gArmMpCoreInfoGuid, ArmCoreInfoTable, sizeof (ARM_CORE_INFO) * ArmCoreCount);
++      }
++    } else {
++      DEBUG ((DEBUG_WARN, "%a: ARM MP Core Info PPI not found — single-core boot\n", __func__));
+     }
+   }
+ 

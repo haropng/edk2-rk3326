@@ -1,0 +1,21 @@
+diff --git a/EmbeddedPkg/Universal/MmcDxe/MmcBlockIo.c b/EmbeddedPkg/Universal/MmcDxe/MmcBlockIo.c
+index 69987e9f1a..df872823b2 100644
+--- a/EmbeddedPkg/Universal/MmcDxe/MmcBlockIo.c
++++ b/EmbeddedPkg/Universal/MmcDxe/MmcBlockIo.c
+@@ -305,6 +305,16 @@ MmcIoBlocks (
+   RemainingBlock               = BlockCount;
+   BytesRemainingToBeTransfered = BufferSize;
+   while (BytesRemainingToBeTransfered > 0) {
++    //
++    // When multi-block is not supported (IsMultiBlock returned FALSE),
++    // RemainingBlock stays at 1 initially but drops to 0 after the first
++    // single-block transfer.  Clamp BlockCount to 1 so we keep using
++    // CMD17/CMD24 instead of falling through to CMD18/CMD25 with count=0.
++    //
++    if (RemainingBlock == 0) {
++      RemainingBlock = 1;
++    }
++
+     if (RemainingBlock <= MaxBlock) {
+       BlockCount = RemainingBlock;
+     } else {

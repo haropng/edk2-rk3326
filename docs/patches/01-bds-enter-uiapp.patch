@@ -1,0 +1,43 @@
+diff --git a/ArmPkg/Library/PlatformBootManagerLib/PlatformBm.c b/ArmPkg/Library/PlatformBootManagerLib/PlatformBm.c
+index ea093bb725..50db0462dd 100644
+--- a/ArmPkg/Library/PlatformBootManagerLib/PlatformBm.c
++++ b/ArmPkg/Library/PlatformBootManagerLib/PlatformBm.c
+@@ -1001,7 +1001,6 @@ PlatformBootManagerAfterConsole (
+   UINTN                         FirmwareVerLength;
+   UINTN                         PosX;
+   UINTN                         PosY;
+-  EFI_INPUT_KEY                 Key;
+ 
+   FirmwareVerLength = StrLen (PcdGetPtr (PcdFirmwareVersionString));
+ 
+@@ -1042,26 +1041,13 @@ PlatformBootManagerAfterConsole (
+   }
+ 
+   //
+-  // Connect device specified by BootDiscoverPolicy variable and
+-  // refresh Boot order for newly discovered boot devices
++  // Skip automatic boot discovery — BDS will fall through to
++  // PlatformBootManagerUnableToBoot -> Boot Manager Menu (UiApp).
+   //
+-  BootDiscoveryPolicyHandler ();
++  // BootDiscoveryPolicyHandler ();
++  // PlatformRegisterFvBootOption (&gUefiShellFileGuid, L"UEFI Shell", 0, &Key);
+ 
+-  //
+-  // On ARM, there is currently no reason to use the phased capsule
+-  // update approach where some capsules are dispatched before EndOfDxe
+-  // and some are dispatched after. So just handle all capsules here,
+-  // when the console is up and we can actually give the user some
+-  // feedback about what is going on.
+-  //
+   HandleCapsules ();
+-
+-  //
+-  // Register UEFI Shell
+-  //
+-  Key.ScanCode    = SCAN_NULL;
+-  Key.UnicodeChar = L's';
+-  PlatformRegisterFvBootOption (&gUefiShellFileGuid, L"UEFI Shell", 0, &Key);
+ }
+ 
+ /**
