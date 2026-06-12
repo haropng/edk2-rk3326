@@ -422,6 +422,12 @@
 !endif
 
   #
+  # ACPI (minimal ARM tables — MADT, GTDT, FADT, DSDT)
+  #
+  MdeModulePkg/Universal/Acpi/AcpiTableDxe/AcpiTableDxe.inf
+  Silicon/Rockchip/RK3326/Drivers/AcpiPlatformDxe/AcpiPlatformDxe.inf
+
+  #
   # BDS
   #
   MdeModulePkg/Universal/BootManagerPolicyDxe/BootManagerPolicyDxe.inf
